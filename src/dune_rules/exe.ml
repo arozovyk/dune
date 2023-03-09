@@ -144,8 +144,9 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
     let prefix =
-      Cm_files.top_sorted_objects_and_cms cm_files ~mode
-      |> Action_builder.dyn_paths_unit
+      Action_builder.dyn_paths_unit
+        (Cm_files.top_sorted_objects_and_cms cm_files ~mode)
+        "dr exe 148"
     in
     let+ fdo_linker_script_flags = Fdo.Linker_script.flags fdo_linker_script in
     let open Action_builder.With_targets.O in

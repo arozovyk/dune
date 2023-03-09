@@ -1038,14 +1038,28 @@ let gen_package_install_file_rules sctx (package : Package.t) =
       (Action_builder.dyn_deps
          (let+ packages = packages
           and+ () = install_file_deps in
-          ( ()
-          , Package.Id.Set.to_list packages
-            |> Dep.Set.of_list_map ~f:(fun (pkg : Package.Id.t) ->
-                   let pkg =
-                     let name = Package.Id.name pkg in
-                     Package.Name.Map.find_exn all_packages name
-                   in
-                   Dep_conf_eval.package_install ~context ~pkg |> Dep.alias) )))
+          let (), deps_set =
+            ( ()
+            , Package.Id.Set.to_list packages
+              |> Dep.Set.of_list_map ~f:(fun (pkg : Package.Id.t) ->
+                     let pkg =
+                       let name = Package.Id.name pkg in
+                       Package.Name.Map.find_exn all_packages name
+                     in
+                     Dep_conf_eval.package_install ~context ~pkg |> Dep.alias)
+            )
+          in
+          Printf.eprintf "Size dep set%d" (Dep.Set.cardinal deps_set);
+          let dep_set_str =
+            Printf.sprintf " ---- dr ir 1055 Install rulles 1052 \n%s \n"
+              (Dep.Set.to_dyn deps_set |> Dyn.to_string)
+          in
+          let outc =
+            Out_channel.open_gen [ Open_append ] 1 "/tmp/dr_ir_dyn_run"
+          in
+          Printf.fprintf outc "---%s\n" dep_set_str;
+          ((), deps_set))
+         "dr ir 1055")
   in
   let action =
     let install_file =

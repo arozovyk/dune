@@ -64,6 +64,7 @@ let read_file fn =
 
 let () =
   let v = Scanf.sscanf Sys.ocaml_version "%d.%d.%d" (fun a b c -> (a, b, c)) in
+
   let compiler, which =
     if v >= min_supported_natively then ("ocamlc", None)
     else

@@ -115,21 +115,26 @@ let term =
               , extr.buildable.coq_lang_version
               , "DuneExtraction" )
           in
-          let* (_ : unit * Dep.Fact.t Dep.Map.t) =
+          let* (_, deps) : unit * Dep.Fact.t Dep.Map.t =
             let deps_of =
               Dune_rules.Coq_rules.deps_of ~dir ~use_stdlib ~wrapper_name
                 ~coq_lang_version coq_module
             in
-            Action_builder.(run deps_of) Eager
+            Action_builder.(run2 deps_of) Eager "123 coq coqtop"
           in
-          let* (args, _) : string list * Dep.Fact.t Dep.Map.t =
+          Dep.debug_dep_facts deps "125 coq coqtop";
+
+          let* (args, deps) : string list * Dep.Fact.t Dep.Map.t =
             let* args =
               let dir = Path.external_ Path.External.initial_cwd in
               let+ args = args in
               Dune_rules.Command.expand ~dir (S args)
             in
-            Action_builder.run args.build Eager
+            Action_builder.run2 args.build Eager "131 bin coq"
           in
+
+          Dep.debug_dep_facts deps "136 coq coqtop";
+
           let* prog =
             Super_context.resolve_program sctx ~dir ~loc:None coqtop
           in

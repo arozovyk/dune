@@ -31,9 +31,9 @@ end = struct
             >>= Memo.parallel_map ~f:(fun (loc, definition) ->
                     Memo.push_stack_frame
                       (fun () ->
-                        Action_builder.run
+                        Action_builder.run2
                           (Build_system.dep_on_alias_definition definition)
-                          Lazy
+                          Lazy "36 dune_engine reflection"
                         >>| snd)
                       ~human_readable_description:(fun () ->
                         Alias.describe alias ~loc))
@@ -58,7 +58,7 @@ let evaluate_rule =
     Memo.create "evaluate-rule"
       ~input:(module Non_evaluated_rule)
       (fun rule ->
-        let* action, deps = Action_builder.run rule.action Lazy in
+        let* action, deps = Action_builder.run2 rule.action Lazy "61 dune_engine " in
         let* expanded_deps = Expand.deps deps in
         Memo.return
           { Rule.id = rule.id
@@ -81,7 +81,7 @@ let eval ~recursive ~request =
             | Some rule -> evaluate_rule rule >>| Option.some)
     >>| List.filter_opt
   in
-  let* (), deps = Action_builder.run request Lazy in
+  let* (), deps = Action_builder.run2 request Lazy "84 dune_engine reflection" in
   let* root_rules = rules_of_deps deps in
   Rule_top_closure.top_closure root_rules
     ~key:(fun rule -> rule.Rule.id)

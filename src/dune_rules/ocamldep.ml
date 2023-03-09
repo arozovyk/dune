@@ -114,13 +114,23 @@ let deps_of
       let open Action_builder.O in
       let paths =
         let+ lines = Action_builder.lines_of (Path.build ocamldep_output) in
+        Printf.eprintf "Odep output : \n";
+        List.iteri ~f:(fun i line -> Printf.eprintf "%d: - %s \n " i line) lines;
         let immediate_deps =
           parse_deps_exn ~file:(Module.File.path source) lines
           |> parse_module_names ~dir:md.dir ~unit ~modules
         in
-        ( transitive_deps immediate_deps
-        , List.map immediate_deps ~f:(fun m ->
-              Module.obj_name m |> Module_name.Unique.to_string) )
+        let trans_de =
+          ( transitive_deps immediate_deps
+          , List.map immediate_deps ~f:(fun m ->
+                Module.obj_name m |> Module_name.Unique.to_string) )
+        in
+        List.iter2
+          ~f:(fun path str ->
+            Printf.eprintf "path %s: - str %s \n " (Path.to_string path) str)
+          (fst trans_de) (snd trans_de);
+
+        trans_de
       in
       Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
         (let+ sources, extras =
@@ -128,6 +138,16 @@ let deps_of
              (let+ sources, extras = paths in
               ((sources, extras), sources))
          in
+         let outc =
+           Out_channel.open_gen [ Open_append ] 1 "/tmp/ocaml_dep_140"
+         in
+         Printf.fprintf outc "Ocaml dep size %d: \n" (List.length sources);
+         List.iter2
+           ~f:(fun path src ->
+             Printf.fprintf outc "---path:%s src: %s\n" (Path.to_string path)
+               src)
+           sources extras;
+
          Action.Merge_files_into (sources, extras, all_deps_file))
     in
     Action_builder.With_targets.map ~f:Action.Full.make produce_all_deps

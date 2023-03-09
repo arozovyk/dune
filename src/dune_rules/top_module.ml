@@ -65,7 +65,7 @@ let module_deps cctx module_ =
     Ocaml.Ml_kind.Dict.get dg Impl
   in
   let action = Dep_graph.deps_of dep_graph module_ in
-  let+ graph, _ = Action_builder.run action Eager in
+  let+ graph, _ = Action_builder.run2 action Eager "68 dune_rules top module" in
   graph
 
 let gen_rules sctx ~dir:rules_dir ~comps =

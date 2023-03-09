@@ -134,3 +134,5 @@ module Set : sig
 
   val digest : t -> Digest.t
 end
+
+val debug_dep_facts : Fact.t Map.t -> string -> unit

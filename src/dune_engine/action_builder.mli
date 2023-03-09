@@ -81,7 +81,7 @@ val dep : Dep.t -> unit t
 
 val deps : Dep.Set.t -> unit t
 
-val dyn_deps : ('a * Dep.Set.t) t -> 'a t
+val dyn_deps : ('a * Dep.Set.t) t -> string -> 'a t
 
 val paths : Path.t list -> unit t
 
@@ -119,7 +119,7 @@ val dyn_memo_deps : (Dep.Set.t * 'a) Memo.t -> 'a t
 (** Record dynamic dependencies *)
 val dyn_paths : ('a * Path.t list) t -> 'a t
 
-val dyn_paths_unit : Path.t list t -> unit t
+val dyn_paths_unit : Path.t list t -> string ->  unit t
 
 val dyn_path_set : ('a * Path.Set.t) t -> 'a t
 

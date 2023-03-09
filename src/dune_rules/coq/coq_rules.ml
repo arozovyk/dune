@@ -456,6 +456,7 @@ let source_rule ~sctx theories =
       Action_builder.List.map theories ~f:(coq_modules_of_theory ~sctx)
     in
     List.concat l |> List.rev_map ~f:(fun m -> Path.build (Coq_module.source m)))
+    "dr coq 458"
 
 let coqdoc_directory ~mode ~obj_dir ~name =
   Path.Build.relative obj_dir

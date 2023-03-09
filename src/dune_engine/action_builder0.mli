@@ -109,8 +109,11 @@ type 'a eval_mode =
   | Eager : Dep.Fact.t eval_mode
 
 (** Execute an action builder. *)
-val run : 'a t -> 'b eval_mode -> ('a * 'b Dep.Map.t) Memo.t
 
+val run2 : 'a t -> 'b eval_mode -> string -> ('a * 'b Dep.Map.t) Memo.t
+
+(* val run : 'a t -> 'b eval_mode -> ('a * 'b Dep.Map.t) Memo.t
+ *)
 (** {1 Low-level} *)
 
 type 'a thunk = { f : 'm. 'm eval_mode -> ('a * 'm Dep.Map.t) Memo.t }

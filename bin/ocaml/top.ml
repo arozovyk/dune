@@ -147,7 +147,9 @@ module Module = struct
                     Dune_rules.Dep_graph.top_closed_implementations dep_graph
                       [ module_ ]
                   in
-                  let+ modules, _ = Action_builder.run graph Eager in
+                  let+ modules, deps  = Action_builder.run2 graph Eager "150 bin ocaml top" in
+                  Dep.debug_dep_facts deps "151 bin ocaml top";
+
                   modules
                 in
                 let cmos =
@@ -177,7 +179,9 @@ module Module = struct
       let pps () =
         let module Merlin = Dune_rules.Merlin in
         let pps = Merlin.pp_config merlin sctx ~expander in
-        let+ pps, _ = Action_builder.run pps Eager in
+        let+ pps, deps = Action_builder.run2 pps Eager "180 bin ocaml top" in
+        Dep.debug_dep_facts deps "183 bin ocaml top";
+
         let pp = Dune_rules.Module_name.Per_item.get pps module_name in
         match pp with
         | None -> (None, None)

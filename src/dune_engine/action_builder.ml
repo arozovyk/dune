@@ -27,12 +27,20 @@ let deps d = dyn_memo_deps (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps t =
+let dyn_deps t from =
+  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/run_calls_trace" in
+  Printf.fprintf outc "Call though dyn_deps from %s \n" from;
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
-          let* (x, deps), deps_x = run t mode in
+          let* (x, deps), deps_x =
+            run2 t mode "35 Dune_engine Action_builder "
+          in
+       (*    Printf.fprintf outc "Set cardinal %d - %s \n" (Dep.Set.cardinal deps)
+            from; *)
+          Printf.eprintf "Set cardinal %d 35 Dune_engine Action_builder \n "
+            (Dep.Set.cardinal deps);
           let+ deps = register_action_deps mode deps in
           (x, Deps_or_facts.union mode deps deps_x))
     }
@@ -64,16 +72,20 @@ let paths_matching ~loc:_ g =
 let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 
 let dyn_paths paths =
-  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
+  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths)) "de ab 73 (ocamldep)"
 
-let dyn_paths_unit paths =
-  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+let dyn_paths_unit paths from2 =
+  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths)) ("de ab 76" ^ from2)
 
 let dyn_path_set paths =
-  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))
+  dyn_deps
+    (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))
+    "de ab 79 "
 
 let dyn_path_set_reuse paths =
-  dyn_deps (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
+  dyn_deps
+    (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
+    "de ab 82"
 
 let env_var s = deps (Dep.Set.singleton (Dep.env s))
 
@@ -115,8 +127,8 @@ let if_file_exists p ~then_ ~else_ =
         (fun mode ->
           let open Memo.O in
           Build_system.file_exists p >>= function
-          | true -> run then_ mode
-          | false -> run else_ mode)
+          | true -> run2 then_ mode "118 Dune_engine Action_builder"
+          | false -> run2 else_ mode "119 Dune_engine Action_builder")
     }
 
 let file_exists p = if_file_exists p ~then_:(return true) ~else_:(return false)
@@ -257,7 +269,7 @@ let progn ts =
   let open With_targets.O in
   With_targets.all ts >>| Action.Full.reduce
 
-let dyn_of_memo_deps t = dyn_deps (dyn_of_memo t)
+let dyn_of_memo_deps t = dyn_deps (dyn_of_memo t) "de ab 266"
 
 let dep_on_alias_if_exists alias =
   of_thunk

@@ -179,11 +179,34 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     let dep_graph =
       Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
     in
+    let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/mod_comp_out" in
+
     let module_deps = Dep_graph.deps_of dep_graph m in
+    let module_id = Module.to_dyn m |> Dyn.to_string in
+    (*     Printf.fprintf outc "  \n   \nModule_id %s: ----" module_id;
+ *)
+    let deps_id =
+      Action_builder.bind
+        ~f:(fun md ->
+          Printf.fprintf outc "\n\n\nModule id \n%s\nHas %d dependecies:\n" module_id
+            (List.length md);
+          List.iteri
+            ~f:(fun i md ->
+              Printf.fprintf outc "Module (w_obj_name \"%s\") dep  #%d:\n%s\n "
+                (Module.obj_name md |> Module_name.Unique.to_string)
+                i
+                (Module.to_dyn md |> Dyn.to_string))
+            md;
+          Action_builder.alias (Alias.default ~dir:(Path.Build.of_string ".")))
+        module_deps
+    in
+    let+ _ = Action_builder.run2 deps_id Lazy "dr mc 200" in
     Action_builder.dyn_paths_unit
       (Action_builder.map module_deps
          ~f:(other_cm_files ~opaque ~cm_kind ~obj_dir))
+      " dr module comp 185"
   in
+  let other_cm_files = Action_builder.of_memo_join other_cm_files in
   let other_targets, cmt_args =
     match cm_kind with
     | Ocaml Cmx -> (other_targets, Command.Args.empty)
@@ -335,6 +358,7 @@ let ocamlc_i ~deps cctx (m : Module.t) ~output =
       List.concat_map deps ~f:(fun m ->
           [ Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:(Ocaml Cmi))
           ]))
+      "dr mc 337"
   in
   let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml Byte) in
   let modules = Compilation_context.modules cctx in
