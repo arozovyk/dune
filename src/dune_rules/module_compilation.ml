@@ -182,14 +182,13 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/mod_comp_out" in
 
     let module_deps = Dep_graph.deps_of dep_graph m in
-    let module_id = Module.to_dyn m |> Dyn.to_string in
+    let _module_id = Module.to_dyn m |> Dyn.to_string in
     (*     Printf.fprintf outc "  \n   \nModule_id %s: ----" module_id;
  *)
     let deps_id =
       Action_builder.bind
         ~f:(fun md ->
-          Printf.fprintf outc "\n\n\nModule id \n%s\nHas %d dependecies:\n" module_id
-            (List.length md);
+          Printf.fprintf outc "\n\n\n";
           List.iteri
             ~f:(fun i md ->
               Printf.fprintf outc "Module (w_obj_name \"%s\") dep  #%d:\n%s\n "
