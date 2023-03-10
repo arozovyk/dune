@@ -148,7 +148,7 @@ module Module = struct
                       [ module_ ]
                   in
                   let+ modules, deps  = Action_builder.run2 graph Eager "150 bin ocaml top" in
-                  Dep.debug_dep_facts deps "151 bin ocaml top";
+                  Dep.debug_dep_facts deps "151 bin ocaml top (module_directives)";
 
                   modules
                 in
@@ -180,7 +180,7 @@ module Module = struct
         let module Merlin = Dune_rules.Merlin in
         let pps = Merlin.pp_config merlin sctx ~expander in
         let+ pps, deps = Action_builder.run2 pps Eager "180 bin ocaml top" in
-        Dep.debug_dep_facts deps "183 bin ocaml top";
+        Dep.debug_dep_facts deps "183 bin ocaml top (module_directives)";
 
         let pp = Dune_rules.Module_name.Per_item.get pps module_name in
         match pp with

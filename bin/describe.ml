@@ -264,7 +264,7 @@ module Crawl = struct
         let+ { Ml_kind.Dict.intf = deps_for_intf; impl = deps_for_impl }, deps =
           Dune_engine.Action_builder.run2 deps Eager "265 Bin Describe"
         in
-        Dep.debug_dep_facts deps "267 Bin Describe";
+        Dep.debug_dep_facts deps "267 Bin Describe (modules)";
         module_ ~obj_dir ~deps_for_intf ~deps_for_impl m :: acc)
 
   (** Builds a workspace item for the provided executables object *)

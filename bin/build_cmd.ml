@@ -47,20 +47,16 @@ let run_build_system ~common ~request =
       (* CR-someday cmoseley: Can we avoid creating a new lazy memo node every
          time the build system is rerun? *)
       (* This top-level node is used for traversing the whole Memo graph. *)
-      Format.eprintf "Before creating a node \n";
       let toplevel_cell, toplevel =
         Memo.Lazy.Expert.create ~name:"toplevel" (fun () ->
             Format.eprintf "Inside memo f \n";
             let open Memo.O in
             let+ (), (deps : Dep.Fact.t Dep.Map.t) =
-              Format.eprintf "before running Action_builder f \n";
               Action_builder.run2 request Eager "57 Bin Build_Cmd"
             in
-            Format.eprintf "after running Action_builder f \n";
-            Dep.debug_dep_facts deps " 60 Bin Build_Cmd";
+            Dep.debug_dep_facts deps " 60 Bin Build_Cmd (run_build_system)";
             ())
       in
-      Format.eprintf "After creating a node \n";
       let* res = run ~toplevel in
       let+ () =
         match Common.dump_memo_graph_file common with

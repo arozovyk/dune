@@ -391,4 +391,5 @@ let debug_dep_facts deps from =
       vals
     |> List.fold_left ~f:(fun x y -> x ^ y ^ "\n") ~init:""
   in
-  Printf.fprintf outc "List of Deps of size %d : \n %s \n ---- \n" (List.length vals) deplist
+  Printf.fprintf outc "List of Deps of size %d from %s: \n %s \n ---- \n"
+    (List.length vals) from deplist

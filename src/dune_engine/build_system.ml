@@ -517,6 +517,7 @@ end = struct
     let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
       rule
     in
+
     (* We run [State.start_rule_exn ()] entirely for its side effect, so one
        might be tempted to use [Memo.of_non_reproducible_fiber] here but that is
        wrong, because that would force us to rerun [execute_rule_impl] on every
@@ -536,8 +537,13 @@ end = struct
        function [(Build_config.get ()).execution_parameters] is likely
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
-    let* action, deps = Action_builder.run2 action Eager " 539 Dune_engine Build_system"in
-    Dep.debug_dep_facts deps "539 Dune_engine Build_system";
+    let* action, deps =
+      Action_builder.run2 action Eager " 539 Dune_engine Build_system"
+    in
+    Dep.debug_dep_facts deps
+      (Printf.sprintf
+         "539 Dune_engine Build_system (execute_rule_impl) targets : %s"
+         (Targets.Validated.to_dyn targets |> Dyn.to_string))  ;
 
     let wrap_fiber f =
       Memo.of_reproducible_fiber
@@ -783,6 +789,7 @@ end = struct
        the calls to [ocamldep], then Dune would remember the whole history of
        calls to [ocamldep] for each OCaml source file. *)
     let deps = Dep.Map.map observing_facts ~f:ignore in
+
     (* Shadow [observing_facts] to make sure we don't use it again. *)
     let observing_facts = () in
     ignore observing_facts;
@@ -795,6 +802,7 @@ end = struct
           } =
         act
       in
+
       let env =
         (* Here we restrict the environment to only the variables we depend on,
            so that we don't re-execute all actions when some irrelevant
@@ -826,6 +834,7 @@ end = struct
         , can_go_in_shared_cache
         , sandbox )
     in
+
     (* It might seem superfluous to memoize the execution here, given that a
        given anonymous action will typically only appear once during a given
        build. However, it is possible that two code paths try to execute the
@@ -925,8 +934,14 @@ end = struct
             match mode with
             | Lazy -> Memo.return ((), Dep.Map.empty)
             | Eager ->
-              let* action, facts = Action_builder.run2 x Eager "926 Dune_engine Build_System.Exported"  in
-              Dep.debug_dep_facts facts "926 Dune_engine Build_System.Exported";
+              let* action, facts =
+                Action_builder.run2 x Eager
+                  "926 Dune_engine Build_System.Exported \
+                   (dep_on_anonymous_action)"
+              in
+              Dep.debug_dep_facts facts
+                "926 Dune_engine Build_System.Exported \
+                 (dep_on_anonymous_action)";
               let+ () = execute_action action ~observing_facts:facts in
               ((), Dep.Map.empty))
       }
@@ -942,7 +957,9 @@ end = struct
       >>= Memo.parallel_map ~f:(fun (loc, definition) ->
               Memo.push_stack_frame
                 (fun () ->
-                  Action_builder.run2 (dep_on_alias_definition definition) Eager "942 Dune_engine Build_system.Exported"
+                  Action_builder.run2
+                    (dep_on_alias_definition definition)
+                    Eager "942 Dune_engine Build_system.Exported"
                   >>| snd)
                 ~human_readable_description:(fun () ->
                   Alias.describe alias ~loc))
