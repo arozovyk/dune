@@ -126,14 +126,14 @@ let of_thunk t = t
 let count = ref 0
 
 (* let run t mode =
-  count := !count + 1;
-  Format.eprintf "Action builder is ran %d time \n  " (!count + 1);
-  t.f mode *)
+   count := !count + 1;
+   Format.eprintf "Action builder is ran %d time \n  " (!count + 1);
+   t.f mode *)
 
-let run2 t mode origin =
+let run2 t mode _origin =
   count := !count + 1;
-  Format.eprintf "Action builder is ran %d time from %s \n  " (!count + 1)
-    origin;
+  (* Format.eprintf "Action builder is ran %d time from %s \n  " (!count + 1)
+     origin; *)
   t.f mode
 
 let force_lazy_or_eager :

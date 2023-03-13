@@ -211,7 +211,7 @@ module Fact = struct
 
   let file_selector fs files =
     let id = File_selector.to_dyn fs in
-    File_selector (id, files)
+     File_selector (id, files)
 
   let alias _alias files = Alias files
 end
@@ -372,8 +372,8 @@ end
 
 let debug_dep_facts deps from =
   let vals = Map.to_list deps in
-  Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
-  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in
+(*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
+ *)  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in
   let deplist =
     List.mapi
       ~f:(fun i (dep, dep_fact) ->

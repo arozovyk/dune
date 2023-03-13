@@ -49,7 +49,8 @@ let run_build_system ~common ~request =
       (* This top-level node is used for traversing the whole Memo graph. *)
       let toplevel_cell, toplevel =
         Memo.Lazy.Expert.create ~name:"toplevel" (fun () ->
-            Format.eprintf "Inside memo f \n";
+            (*             Format.eprintf "Inside memo f \n";
+ *)
             let open Memo.O in
             let+ (), (deps : Dep.Fact.t Dep.Map.t) =
               Action_builder.run2 request Eager "57 Bin Build_Cmd"
