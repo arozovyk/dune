@@ -519,6 +519,7 @@ let exec_until_all_deps_ready ~display ~ectx ~eenv t =
       let* fact_map =
         ectx.build_deps (Dynamic_dep.Set.to_dep_set deps_to_build)
       in
+
       let stages = (deps_to_build, fact_map) :: stages in
       let eenv =
         { eenv with

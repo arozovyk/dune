@@ -26,7 +26,7 @@ let init ?(file = File.Default) () =
       Some (Io.open_out (Path.relative Path.build_dir "log"))
   in
   Option.iter oc ~f:(fun oc ->
-      Printf.fprintf oc "# %s\n# OCAMLPARAM: %s\n%!"
+      Printf.fprintf oc " %s\n OCAMLPARAM: %s\n%!"
         (String.concat
            (List.map (Array.to_list Sys.argv) ~f:String.quote_for_shell)
            ~sep:" ")
@@ -46,8 +46,8 @@ let info_user_message msg =
     Option.iter oc ~f:(fun oc ->
         let s = Format.asprintf "%a@?" Pp.to_fmt (User_message.pp msg) in
         List.iter (String.split_lines s) ~f:(function
-          | "" -> output_string oc "#\n"
-          | s -> Printf.fprintf oc "# %s\n" s);
+          | "" -> output_string oc "\n"
+          | s -> Printf.fprintf oc " %s\n" s);
         flush oc);
     if !verbose then Console.print_user_message msg
 

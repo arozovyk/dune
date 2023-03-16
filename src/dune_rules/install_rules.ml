@@ -1049,7 +1049,7 @@ let gen_package_install_file_rules sctx (package : Package.t) =
                      Dep_conf_eval.package_install ~context ~pkg |> Dep.alias)
             )
           in
-          Printf.eprintf "Size dep set%d" (Dep.Set.cardinal deps_set);
+          (* Printf.eprintf "Size dep set%d" (Dep.Set.cardinal deps_set);
           let dep_set_str =
             Printf.sprintf " ---- dr ir 1055 Install rulles 1052 \n%s \n"
               (Dep.Set.to_dyn deps_set |> Dyn.to_string)
@@ -1057,7 +1057,7 @@ let gen_package_install_file_rules sctx (package : Package.t) =
           let outc =
             Out_channel.open_gen [ Open_append ] 1 "/tmp/dr_ir_dyn_run"
           in
-          Printf.fprintf outc "---%s\n" dep_set_str;
+          Printf.fprintf outc "---%s\n" dep_set_str; *)
           ((), deps_set))
          "dr ir 1055")
   in

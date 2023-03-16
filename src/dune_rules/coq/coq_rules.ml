@@ -508,7 +508,7 @@ let setup_coqdoc_rules ~sctx ~dir ~theories_deps (s : Coq_stanza.Theory.t)
                        (* TODO *)
                        Glob.of_string_exn Loc.none "*.glob"
                        |> File_selector.of_glob ~dir:(Path.build dir)
-                       |> Dep.file_selector))
+                       |> Dep.file_selector  ))
              in
              Command.Args.Hidden_deps (Dep.Set.union_all deps)
            in

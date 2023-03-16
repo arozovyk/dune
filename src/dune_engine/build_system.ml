@@ -242,7 +242,7 @@ module type Rec = sig
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
-  val build_deps : Dep.Set.t -> Dep.Facts.t Memo.t
+  val build_deps : Dep.Set.t -> from:string -> Dep.Facts.t Memo.t
 
   val eval_deps :
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
@@ -302,24 +302,33 @@ end = struct
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
+      Log.info
+        [ Pp.textf "build_dep %s" (File_selector.to_dyn g |> Dyn.to_string) ];
+      (*TODO refine here (if second pass? ) *)
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
-      Dep.Fact.file_selector g digests
+      Dep.Fact.file_selector ~from:"dune_engine build_system 310 " g digests
     | Universe | Env _ ->
       (* Facts about these dependencies are constructed in
          [Dep.Facts.digest]. *)
       Memo.return Dep.Fact.nothing
 
-  let build_deps deps =
-    Dep.Map.parallel_map deps ~f:(fun dep () -> build_dep dep)
+  let build_deps deps ~from =
+    Dep.Map.parallel_map deps ~f:(fun dep () ->
+        match dep with
+        | File_selector _ ->
+          Dune_util.Log.info
+            [ Pp.textf "Building File selector calling from %s" from ];
+          build_dep dep
+        | _ -> build_dep dep)
 
   let eval_deps :
       type a. a Action_builder.eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
    fun mode deps ->
     match mode with
     | Lazy -> Memo.return deps
-    | Eager -> build_deps deps
+    | Eager -> build_deps deps ~from:"d e b s 331"
 
   let select_sandbox_mode (config : Sandbox_config.t) ~loc
       ~sandboxing_preference =
@@ -475,7 +484,9 @@ end = struct
     in
     let+ exec_result =
       with_locks locks ~f:(fun () ->
-          let build_deps deps = Memo.run (build_deps deps) in
+          let build_deps deps =
+            Memo.run (build_deps deps ~from:"d e b s 487")
+          in
           let+ action_exec_result =
             Action_exec.exec ~root ~context ~env ~targets:(Some targets)
               ~rule_loc:loc ~build_deps ~execution_parameters action
@@ -543,7 +554,7 @@ end = struct
     Dep.debug_dep_facts deps
       (Printf.sprintf
          "539 Dune_engine Build_system (execute_rule_impl) targets : %s"
-         (Targets.Validated.to_dyn targets |> Dyn.to_string))  ;
+         (Targets.Validated.to_dyn targets |> Dyn.to_string));
 
     let wrap_fiber f =
       Memo.of_reproducible_fiber
@@ -623,7 +634,8 @@ end = struct
         let* (produced_targets : Digest.t Targets.Produced.t) =
           (* Step I. Check if the workspace-local cache is up to date. *)
           Rule_cache.Workspace_local.lookup ~always_rerun ~rule_digest ~targets
-            ~env:action.env ~build_deps
+            ~env:action.env
+            ~build_deps:(build_deps ~from:"d e b s 637")
           >>= function
           | Some produced_targets -> Fiber.return produced_targets
           | None ->

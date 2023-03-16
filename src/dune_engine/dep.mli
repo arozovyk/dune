@@ -73,7 +73,7 @@ module Fact : sig
   val alias : Alias.t -> Files.t -> t
 
   (** [digest] is assumed to be the [digest_paths expansion]. *)
-  val file_selector : File_selector.t -> Files.t -> t
+  val file_selector : File_selector.t -> Files.t -> from:string -> t
 end
 
 module Facts : sig

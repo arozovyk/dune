@@ -31,7 +31,7 @@ module T = struct
 
   let universe = Universe
 
-  let file_selector g = File_selector g
+  let file_selector   g = File_selector g
 
   let compare x y =
     match (x, y) with
@@ -209,9 +209,15 @@ module Fact = struct
 
   let file fn digest = File (fn, digest)
 
-  let file_selector fs files =
+  let file_selector fs files ~from =
     let id = File_selector.to_dyn fs in
-     File_selector (id, files)
+    Dune_util.Log.info
+      [ Pp.textf "combining file_selector %s and files %s from %s"
+          (File_selector.to_dyn fs |> Dyn.to_string)
+          (Files.to_dyn files |> Dyn.to_string)
+          from
+      ];
+    File_selector (id, files)
 
   let alias _alias files = Alias files
 end
@@ -372,8 +378,9 @@ end
 
 let debug_dep_facts deps from =
   let vals = Map.to_list deps in
-(*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
- *)  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in
+  (*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
+ *)
+  (*  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in *)
   let deplist =
     List.mapi
       ~f:(fun i (dep, dep_fact) ->
@@ -391,5 +398,7 @@ let debug_dep_facts deps from =
       vals
     |> List.fold_left ~f:(fun x y -> x ^ y ^ "\n") ~init:""
   in
-  Printf.fprintf outc "List of Deps of size %d from %s: \n %s \n ---- \n"
-    (List.length vals) from deplist
+  Dune_util.Log.info
+    [ Pp.textf "List of Deps of size %d from %s: \n %s \n ---- \n"
+        (List.length vals) from deplist
+    ]

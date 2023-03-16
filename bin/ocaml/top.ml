@@ -147,8 +147,11 @@ module Module = struct
                     Dune_rules.Dep_graph.top_closed_implementations dep_graph
                       [ module_ ]
                   in
-                  let+ modules, deps  = Action_builder.run2 graph Eager "150 bin ocaml top" in
-                  Dep.debug_dep_facts deps "151 bin ocaml top (module_directives)";
+                  let+ modules, deps =
+                    Action_builder.run2 graph Eager "150 bin ocaml top"
+                  in
+                  Dep.debug_dep_facts deps
+                    "151 bin ocaml top (module_directives)";
 
                   modules
                 in
@@ -168,7 +171,8 @@ module Module = struct
                       |> Option.map ~f:Path.build)
                 in
                 let+ (_ : Dep.Facts.t) =
-                  Build_system.build_deps (Dep.Set.of_files cmos)
+                  Build_system.build_deps ~from:"ocaml top 171"
+                    (Dep.Set.of_files cmos)
                 in
                 cmos
               in

@@ -7,10 +7,12 @@ open struct
 end
 
 let register_action_deps :
-    type a. a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
- fun mode deps ->
+    type a. a eval_mode -> Dep.Set.t -> from:string -> a Dep.Map.t Memo.t =
+ fun mode deps ~from ->
   match mode with
-  | Eager -> Build_system.build_deps deps
+  | Eager ->
+    Dune_util.Log.info [ Pp.textf "Just built  d e a b Eager from %s" from ];
+    Build_system.build_deps ~from:("d e a b 15 from<-" ^ from) deps
   | Lazy -> Memo.return deps
 
 let dyn_memo_deps deps =
@@ -19,7 +21,7 @@ let dyn_memo_deps deps =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
-          let+ deps = register_action_deps mode deps in
+          let+ deps = register_action_deps mode deps ~from:"d e a b 24" in
           (paths, deps))
     }
 
@@ -27,9 +29,11 @@ let deps d = dyn_memo_deps (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps t from =
-  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/run_calls_trace" in
-  Printf.fprintf outc "Call though dyn_deps from %s \n" from;
+let dyn_deps t _from =
+  (*   let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/run_calls_trace" in
+ *)
+  (*   Printf.fprintf outc "Call though dyn_deps from %s \n" from;
+ *)
   of_thunk
     { f =
         (fun mode ->
@@ -37,11 +41,11 @@ let dyn_deps t from =
           let* (x, deps), deps_x =
             run2 t mode "35 Dune_engine Action_builder "
           in
-       (*    Printf.fprintf outc "Set cardinal %d - %s \n" (Dep.Set.cardinal deps)
-            from; *)
-         (*  Printf.eprintf "Set cardinal %d 35 Dune_engine Action_builder \n "
-            (Dep.Set.cardinal deps); *)
-          let+ deps = register_action_deps mode deps in
+          (* Printf.fprintf outc "Set cardinal %d - %s \n" (Dep.Set.cardinal deps)
+             from; *)
+          (* Printf.eprintf "Set cardinal %d 35 Dune_engine Action_builder \n "
+             (Dep.Set.cardinal deps); *)
+          let+ deps = register_action_deps mode deps ~from:"d e a b 48" in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
@@ -60,7 +64,8 @@ let paths_matching :
   | Eager ->
     let+ files = Build_system.build_pred g in
     ( Path.Map.keys (Dep.Fact.Files.paths files) |> Path.Set.of_list
-    , Dep.Map.singleton (Dep.file_selector g) (Dep.Fact.file_selector g files)
+    , Dep.Map.singleton (Dep.file_selector g)
+        (Dep.Fact.file_selector ~from:"dune_engine_actionbuilder 66 " g files)
     )
   | Lazy ->
     let+ files = Build_system.eval_pred g in
@@ -72,10 +77,14 @@ let paths_matching ~loc:_ g =
 let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 
 let dyn_paths paths =
-  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths)) "de ab 73 (ocamldep)"
+  dyn_deps
+    (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
+    "de ab 73 (ocamldep)"
 
 let dyn_paths_unit paths from2 =
-  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths)) ("de ab 76" ^ from2)
+  dyn_deps
+    (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+    ("de ab 76" ^ from2)
 
 let dyn_path_set paths =
   dyn_deps
@@ -281,7 +290,7 @@ let dep_on_alias_if_exists alias =
           | false -> Memo.return (false, Dep.Map.empty)
           | true ->
             let deps = Dep.Set.singleton (Dep.alias alias) in
-            let+ deps = register_action_deps mode deps in
+            let+ deps = register_action_deps mode deps ~from:"d e a b 293" in
             (true, deps))
     }
 
