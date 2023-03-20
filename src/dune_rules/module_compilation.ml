@@ -180,6 +180,9 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
       Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
     in
     let module_deps = Dep_graph.deps_of dep_graph m in
+    (* Dune_util.Log.info
+       [ Pp.textf "module_deps %s  " (Module.to_dyn m |> Dyn.to_string) ];
+    *)
     Action_builder.dyn_paths_unit
       (Action_builder.map module_deps
          ~f:(other_cm_files ~opaque ~cm_kind ~obj_dir))
@@ -247,7 +250,12 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
        if dune_version >= (3, 7) then dir else ctx.build_dir)
     ?loc:(CC.loc cctx)
     (let open Action_builder.With_targets.O in
-    Action_builder.with_no_targets (Action_builder.paths extra_deps)
+    Action_builder.with_no_targets
+      (Action_builder.paths
+         ~from:
+           (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))
+           ^ "->build_cm 253")
+         extra_deps)
     >>> Action_builder.with_no_targets other_cm_files
     >>> Command.run ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags
@@ -466,6 +474,7 @@ let build_root_module cctx root_module =
   build_module cctx root_module
 
 let build_all cctx =
+  Dune_util.Log.info [ Pp.textf "build all\n " ];
   let for_wrapped_compat = lazy (Compilation_context.for_wrapped_compat cctx) in
   let modules = Compilation_context.modules cctx in
   Memo.parallel_iter

@@ -892,6 +892,7 @@ let package_deps (pkg : Package.t) files =
       else
         let rules_seen = Rule.Set.add rules_seen rule in
         let* res = Dune_engine.Build_system.execute_rule rule in
+        Dune_util.Log.info [Pp.textf "Package dep"];
         loop_files rules_seen
           (Dep.Facts.paths res.deps |> Path.Map.keys
           |> (* if this file isn't in the build dir, it doesn't belong to any

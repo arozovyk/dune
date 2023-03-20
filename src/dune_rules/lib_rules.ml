@@ -55,7 +55,8 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
         | Other _ -> Fun.id
       in
       let obj_deps =
-        Action_builder.paths (Cm_files.unsorted_objects_and_cms cm_files ~mode)
+        Action_builder.paths ~from:"build_lib 58"
+          (Cm_files.unsorted_objects_and_cms cm_files ~mode)
       in
       let ocaml_flags = Ocaml_flags.get flags (Ocaml mode) in
       let* standard =
@@ -333,7 +334,7 @@ let build_shared lib ~native_archives ~sctx ~dir ~flags =
       let open Action_builder.With_targets.O in
       let build =
         Action_builder.with_no_targets
-          (Action_builder.paths
+          (Action_builder.paths ~from:"build_shared 336"
              (Library.foreign_lib_files lib ~dir ~ext_lib
                 ~for_mode:(Mode.Select.Only Byte)
               @ Library.foreign_lib_files lib ~dir ~ext_lib
@@ -353,7 +354,8 @@ let build_shared lib ~native_archives ~sctx ~dir ~flags =
       in
       let build =
         Action_builder.with_no_targets
-          (Action_builder.paths (List.map ~f:Path.build native_archives))
+          (Action_builder.paths ~from:"build_shared 356"
+             (List.map ~f:Path.build native_archives))
         >>> build
       in
       Super_context.add_rule sctx build ~dir ~loc:lib.buildable.loc)
@@ -477,6 +479,7 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
   let source_modules =
     Modules.fold_user_written source_modules ~init:[] ~f:(fun m acc -> m :: acc)
   in
+  Dune_util.Log.info [ Pp.textf "library_rules \n " ];
   let modules = Compilation_context.modules cctx in
   let obj_dir = Compilation_context.obj_dir cctx in
   let vimpl = Compilation_context.vimpl cctx in

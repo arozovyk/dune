@@ -238,11 +238,11 @@ module type Rec = sig
       expansion. *)
   val build_alias : Alias.t -> Dep.Fact.Files.t Memo.t
 
-  val build_file : Path.t -> Digest.t Memo.t
+  val build_file : ?from:string -> Path.t -> Digest.t Memo.t
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
-  val build_deps : Dep.Set.t -> Dep.Facts.t Memo.t
+  val build_deps : ?from:string -> Dep.Set.t -> Dep.Facts.t Memo.t
 
   val eval_deps :
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
@@ -292,13 +292,14 @@ end = struct
 
   (* [build_dep] turns a [Dep.t] which is a description of a dependency into a
      fact about the world. To do that, it needs to do some building. *)
-  let build_dep : Dep.t -> Dep.Fact.t Memo.t = function
+  let build_dep : ?from:string -> Dep.t -> Dep.Fact.t Memo.t =
+   fun ?(from = "unknown") -> function
     | Alias a ->
       let+ digests = build_alias a in
       (* Fact: alias [a] expands to the set of file-digest pairs [digests] *)
       Dep.Fact.alias a digests
     | File f ->
-      let+ digest = build_file f in
+      let+ digest = build_file ~from:(from ^ "301") f in
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
@@ -311,15 +312,16 @@ end = struct
          [Dep.Facts.digest]. *)
       Memo.return Dep.Fact.nothing
 
-  let build_deps deps =
-    Dep.Map.parallel_map deps ~f:(fun dep () -> build_dep dep)
+  let build_deps ?(from = "unknown") deps =
+    Dep.Map.parallel_map deps ~f:(fun dep () ->
+        build_dep ~from:(from ^ "build_deps 316") dep)
 
   let eval_deps :
       type a. a Action_builder.eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
    fun mode deps ->
     match mode with
     | Lazy -> Memo.return deps
-    | Eager -> build_deps deps
+    | Eager -> build_deps ~from:"eval_deps 324" deps
 
   let select_sandbox_mode (config : Sandbox_config.t) ~loc
       ~sandboxing_preference =
@@ -475,7 +477,7 @@ end = struct
     in
     let+ exec_result =
       with_locks locks ~f:(fun () ->
-          let build_deps deps = Memo.run (build_deps deps) in
+          let build_deps deps = Memo.run (build_deps ~from:"execute action rule 480" deps) in
           let+ action_exec_result =
             Action_exec.exec ~root ~context ~env ~targets:(Some targets)
               ~rule_loc:loc ~build_deps ~execution_parameters action
@@ -513,6 +515,34 @@ end = struct
     | Promote promote, (Some Automatically | None) ->
       Target_promotion.promote ~dir ~targets ~promote ~promote_source
 
+  let _debug_dep_facts deps from =
+    let open Dep in
+    let vals = Map.to_list deps in
+    (*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
+           *)
+    (*  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in *)
+    let deplist =
+      List.mapi
+        ~f:(fun i (dep, dep_fact) ->
+          let dep_s =
+            match dep with
+            | Env s -> "Env" ^ s
+            | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
+            | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
+            | File_selector (* of File_selector.t *) d ->
+              "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
+            | Universe -> "Universe"
+          in
+          Dep.Fact.to_dyn dep_fact |> Dyn.to_string
+          |> Format.sprintf "Dep #%d \n -- fact : %s \n -- dyn %s\n " i dep_s)
+        vals
+      |> List.fold_left ~f:(fun x y -> x ^ y ^ "\n") ~init:""
+    in
+    Dune_util.Log.info
+      [ Pp.textf "List of Deps of size %d from %s: \n %s \n ---- \n"
+          (List.length vals) from deplist
+      ]
+
   let execute_rule_impl ~rule_kind rule =
     let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
       rule
@@ -537,6 +567,8 @@ end = struct
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
     let* action, deps = Action_builder.run action Eager in
+    (* debug_dep_facts deps
+       ("target123 : " ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()
@@ -869,6 +901,9 @@ end = struct
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
+      (* debug_dep_facts deps
+         (Printf.sprintf "build_file_impl for file %s"
+            (Path.Build.to_string path)); *)
       match Path.Build.Map.find targets path with
       | Some digest -> (digest, File_target)
       | None -> (
@@ -954,7 +989,7 @@ end = struct
         let* paths = Pred.eval g in
         let+ files =
           Memo.parallel_map (Path.Set.to_list paths) ~f:(fun p ->
-              let+ d = build_file p in
+              let+ d = build_file ~from:"990" p in
               (p, d))
         in
         Dep.Fact.Files.make
@@ -1027,7 +1062,12 @@ end = struct
     let cutoff = Tuple.T2.equal Digest.equal target_kind_equal in
     Memo.create "build-file" ~input:(module Path) ~cutoff build_file_impl
 
-  let build_file path = Memo.exec build_file_memo path >>| fst
+  let build_file ?(from = "unknown") path =
+    Dune_util.Log.info
+      [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
+      ];
+
+    Memo.exec build_file_memo path >>| fst
 
   let build_dir path =
     let+ digest, kind = Memo.exec build_file_memo path in
@@ -1181,7 +1221,7 @@ let run_exn f =
   | Error `Already_reported -> raise Dune_util.Report_error.Already_reported
 
 let build_file p =
-  let+ (_ : Digest.t) = build_file p in
+  let+ (_ : Digest.t) = build_file ~from:"1220" p in
   ()
 
 let read_file p ~f =

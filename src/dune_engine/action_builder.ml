@@ -7,25 +7,29 @@ open struct
 end
 
 let register_action_deps :
-    type a. a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
- fun mode deps ->
+    type a. a eval_mode -> ?from:string -> Dep.Set.t -> a Dep.Map.t Memo.t =
+ fun mode ?(from = "unknown") deps ->
   match mode with
-  | Eager -> Build_system.build_deps deps
+  | Eager ->
+    Build_system.build_deps ~from:(from ^ "->register_action_deps") deps
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps deps =
+let dyn_memo_deps ?(from = "unknown") deps =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
-          let+ deps = register_action_deps mode deps in
+          let+ deps =
+            register_action_deps ~from:(from ^ "->dyn_memo_deps") mode deps
+          in
           (paths, deps))
     }
 
-let deps d = dyn_memo_deps (Memo.return (d, ()))
+let deps ?(from = "unknown") d =
+  dyn_memo_deps ~from:(from ^ "->>deps 27 ") (Memo.return (d, ()))
 
-let dep d = deps (Dep.Set.singleton d)
+let dep d = deps ~from:"dep 32" (Dep.Set.singleton d)
 
 let dyn_deps t =
   of_thunk
@@ -37,9 +41,10 @@ let dyn_deps t =
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
-let path p = deps (Dep.Set.singleton (Dep.file p))
+let path p = deps ~from:"path 44" (Dep.Set.singleton (Dep.file p))
 
-let paths ps = deps (Dep.Set.of_files ps)
+let paths ?(from = "unknown ") ps =
+  deps ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 
