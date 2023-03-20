@@ -265,13 +265,24 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets
       (Action_builder.bind module_deps ~f:(fun _mlist ->
-           Dune_util.Log.info
-             [ Pp.textf "Module123 %s deps are :\n%s"
-                 (Module.name m |> Module_name.to_string)
-                 (List.fold_left ~init:""
-                    ~f:(fun i m -> i ^ (Module.name m |> Module_name.to_string))
-                    _mlist)
-             ];
+           (* Dune_util.Log.info
+              [ Pp.textf "Module123 %s deps are :\n%s"
+                  (Module.name m |> Module_name.to_string)
+                  (List.fold_left ~init:""
+                     ~f:(fun i m -> i ^ (Module.name m |> Module_name.to_string))
+                     _mlist)
+              ]; *)
+           let _m_list_path =
+             List.map ~f:(fun m -> Module.to_dyn m |> Dyn.to_string) _mlist
+           in
+           List.iteri
+             ~f:(fun i mstr ->
+               Dune_util.Log.info
+                 [ Pp.textf "Dog123 numero : %d : for %s is %s\n" i
+                     (Module.name m |> Module_name.to_string)
+                     mstr
+                 ])
+             _m_list_path;
            Action_builder.paths ~module_deps
              ~from:
                (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))

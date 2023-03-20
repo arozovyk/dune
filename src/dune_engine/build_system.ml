@@ -303,6 +303,9 @@ end = struct
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
+      let path = File_selector.dir g in
+      Dune_util.Log.info
+        [ Pp.textf "File selector123 path %s" (Dpath.describe_path path) ];
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
@@ -314,7 +317,9 @@ end = struct
 
   let build_deps ?(from = "unknown") deps =
     Dep.Map.parallel_map deps ~f:(fun dep () ->
-        build_dep ~from:(from ^ "build_deps 316") dep)
+        let b_dep = build_dep ~from:(from ^ "build_deps 316") dep in
+
+        b_dep)
 
   let eval_deps :
       type a. a Action_builder.eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
@@ -477,7 +482,9 @@ end = struct
     in
     let+ exec_result =
       with_locks locks ~f:(fun () ->
-          let build_deps deps = Memo.run (build_deps ~from:"execute action rule 480" deps) in
+          let build_deps deps =
+            Memo.run (build_deps ~from:"execute action rule 480" deps)
+          in
           let+ action_exec_result =
             Action_exec.exec ~root ~context ~env ~targets:(Some targets)
               ~rule_loc:loc ~build_deps ~execution_parameters action
