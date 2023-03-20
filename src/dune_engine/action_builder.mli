@@ -79,11 +79,11 @@ val path : Path.t -> unit t
 
 val dep : Dep.t -> unit t
 
-val deps : ?from:string -> Dep.Set.t -> unit t
+val deps : ?from:string -> ?module_deps:'a list t ->  Dep.Set.t -> unit t
 
 val dyn_deps : ('a * Dep.Set.t) t -> 'a t
 
-val paths : ?from:string -> Path.t list -> unit t
+val paths : ?from:string -> ?module_deps:'a list t -> Path.t list -> unit t
 
 val path_set : Path.Set.t -> unit t
 

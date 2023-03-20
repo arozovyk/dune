@@ -26,8 +26,9 @@ let dyn_memo_deps ?(from = "unknown") deps =
           (paths, deps))
     }
 
-let deps ?(from = "unknown") d =
-  dyn_memo_deps ~from:(from ^ "->>deps 27 ") (Memo.return (d, ()))
+let deps ?(from = "unknown") ?module_deps d =
+  let _ = module_deps in
+  dyn_memo_deps ~from:(from ^ "->>deps 27") (Memo.return (d, ()))
 
 let dep d = deps ~from:"dep 32" (Dep.Set.singleton d)
 
@@ -43,8 +44,9 @@ let dyn_deps t =
 
 let path p = deps ~from:"path 44" (Dep.Set.singleton (Dep.file p))
 
-let paths ?(from = "unknown ") ps =
-  deps ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
+let paths ?(from = "unknown ") ?module_deps ps =
+  let _ = module_deps in
+  deps ~module_deps ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 

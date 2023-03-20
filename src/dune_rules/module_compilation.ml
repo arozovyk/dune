@@ -95,6 +95,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   let obj_dir = CC.obj_dir cctx in
   let ctx = Super_context.context sctx in
   let mode = Lib_mode.of_cm_kind cm_kind in
+
   let sandbox =
     let default = CC.sandbox cctx in
     match Module.kind m with
@@ -122,12 +123,18 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   (let open Option.O in
   let* compiler = compiler in
   let ml_kind = Lib_mode.Cm_kind.source cm_kind in
+  let dep_graph =
+    Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
+  in
+  let module_deps = Dep_graph.deps_of dep_graph m in
+
   let+ src = Module.file m ~ml_kind in
   let dst = Obj_dir.Module.cm_file_exn obj_dir m ~kind:cm_kind in
   let obj =
     Obj_dir.Module.obj_file obj_dir m ~kind:(Ocaml Cmx)
       ~ext:ctx.lib_config.ext_obj
   in
+
   let open Memo.O in
   let* extra_args, extra_deps, other_targets =
     if precompiled_cmi then Memo.return (force_read_cmi src, [], [])
@@ -151,15 +158,24 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
         | (Ocaml Cmo | Melange Cmj), None, true
         | (Ocaml (Cmo | Cmx) | Melange Cmj), _, _ ->
           let cmi_kind = Lib_mode.Cm_kind.cmi cm_kind in
-          Memo.return
-            ( force_read_cmi src
-            , [ Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind)
-              ]
-            , [] )
+          let path_extradeps =
+            Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind)
+          in
+          (* Dune_util.Log.info
+             [ Pp.textf "path_extradeps %s" (Path.to_string path_extradeps) ]; *)
+          Memo.return (force_read_cmi src, [ path_extradeps ], [])
         | (Ocaml Cmi | Melange Cmi), _, _ ->
           let+ () = copy_interface ~dir ~obj_dir ~sctx ~cm_kind m in
           ([], [], []))
   in
+
+  (* Dune_util.Log.info
+     [ Pp.textf "Module %s deps are :\n%s"
+         (Module.name m |> Module_name.to_string)
+         (List.fold_left ~init:""
+            ~f:(fun i m -> i ^ (Module.name m |> Module_name.to_string))
+            _m_dep_l)
+     ]; *)
   let other_targets =
     match cm_kind with
     | Ocaml (Cmi | Cmo) | Melange (Cmi | Cmj) -> other_targets
@@ -175,11 +191,8 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
       | Some All | None -> obj :: other_targets)
   in
   let opaque = CC.opaque cctx in
+
   let other_cm_files =
-    let dep_graph =
-      Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
-    in
-    let module_deps = Dep_graph.deps_of dep_graph m in
     (* Dune_util.Log.info
        [ Pp.textf "module_deps %s  " (Module.to_dyn m |> Dyn.to_string) ];
     *)
@@ -251,11 +264,19 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     ?loc:(CC.loc cctx)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets
-      (Action_builder.paths
-         ~from:
-           (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))
-           ^ "->build_cm 253")
-         extra_deps)
+      (Action_builder.bind module_deps ~f:(fun _mlist ->
+           Dune_util.Log.info
+             [ Pp.textf "Module123 %s deps are :\n%s"
+                 (Module.name m |> Module_name.to_string)
+                 (List.fold_left ~init:""
+                    ~f:(fun i m -> i ^ (Module.name m |> Module_name.to_string))
+                    _mlist)
+             ];
+           Action_builder.paths ~module_deps
+             ~from:
+               (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))
+               ^ "->build_cm 253")
+             extra_deps))
     >>> Action_builder.with_no_targets other_cm_files
     >>> Command.run ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags
