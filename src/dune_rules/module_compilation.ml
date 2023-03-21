@@ -280,6 +280,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
                       mdeppath
                   ])
               _m_list_path; *)
+
            Action_builder.paths ~odep_out
              ~from:
                ("module compilation for  "

@@ -44,10 +44,7 @@ type rule_execution_result =
   }
 
 val execute_rule :
-     ?odep_out:string list
-  -> ?from:string
-  -> Rule.t
-  -> rule_execution_result Memo.t
+  ?odep_out:string list -> Rule.t -> rule_execution_result Memo.t
 
 val dep_on_alias_definition :
   Rules.Dir_rules.Alias_spec.item -> unit Action_builder.t

@@ -238,8 +238,7 @@ module type Rec = sig
       expansion. *)
   val build_alias : Alias.t -> Dep.Fact.Files.t Memo.t
 
-  val build_file :
-    ?odep_out:string list -> ?from:string -> Path.t -> Digest.t Memo.t
+  val build_file : ?from:string -> Path.t -> Digest.t Memo.t
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
@@ -250,10 +249,7 @@ module type Rec = sig
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
 
   val execute_rule :
-       ?odep_out:string list
-    -> ?from:string
-    -> Rule.t
-    -> rule_execution_result Memo.t
+    ?odep_out:string list -> Rule.t -> rule_execution_result Memo.t
 
   val execute_action :
     observing_facts:Dep.Facts.t -> Rule.Anonymous_action.t -> unit Memo.t
@@ -277,10 +273,7 @@ and Exported : sig
   include Rec
 
   val execute_rule :
-       ?odep_out:string list
-    -> ?from:string
-    -> Rule.t
-    -> rule_execution_result Memo.t
+    ?odep_out:string list -> Rule.t -> rule_execution_result Memo.t
 
   type target_kind =
     | File_target
@@ -289,11 +282,7 @@ and Exported : sig
   (* The below two definitions are useless, but if we remove them we get an
      "Undefined_recursive_module" exception. *)
 
-  val build_file_memo :
-       ?odep_out:string list
-    -> ?from:string
-    -> unit
-    -> (Path.t, Digest.t * target_kind) Memo.Table.t
+  val build_file_memo : (Path.t, Digest.t * target_kind) Memo.Table.t
     [@@warning "-32"]
 
   val build_alias_memo : (Alias.t, Dep.Fact.Files.t) Memo.Table.t
@@ -308,21 +297,21 @@ end = struct
      fact about the world. To do that, it needs to do some building. *)
   let build_dep :
       ?odep_out:string list -> ?from:string -> Dep.t -> Dep.Fact.t Memo.t =
-   fun ?(odep_out = []) ?(from = "unknown") -> function
+   fun ?(odep_out = []) ?(from = "unknown") ->
+    Dune_util.Log.info [ Pp.textf "Size of odep : %d" (List.length odep_out) ];
+    function
     | Alias a ->
       let+ digests = build_alias a in
       (* Fact: alias [a] expands to the set of file-digest pairs [digests] *)
       Dep.Fact.alias a digests
     | File f ->
-      let+ digest = build_file ~odep_out ~from:(from ^ "301") f in
+      let+ digest = build_file ~from:(from ^ "301") f in
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
       let path = File_selector.dir g in
       Dune_util.Log.info
-        [ Pp.textf "File selector123 path %s coming from ->>> %s"
-            (Dpath.describe_path path) from
-        ];
+        [ Pp.textf "File selector123 path %s" (Dpath.describe_path path) ];
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
@@ -333,6 +322,8 @@ end = struct
       Memo.return Dep.Fact.nothing
 
   let build_deps ?(odep_out = []) ?(from = "unknown") deps =
+    let _ = odep_out in
+
     Dep.Map.parallel_map deps ~f:(fun dep () ->
         let b_dep = build_dep ~odep_out ~from:(from ^ "build_deps 316") dep in
 
@@ -567,7 +558,7 @@ end = struct
           (List.length vals) from deplist
       ]
 
-  let execute_rule_impl ?(odep_out = []) ?(from = "unknown") ~rule_kind rule =
+  let execute_rule_impl ~rule_kind rule =
     let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
       rule
     in
@@ -591,45 +582,8 @@ end = struct
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
     let* action, deps = Action_builder.run action Eager in
-    _debug_dep_facts deps
-      ("target123 : from :---" ^ from ^ " ---321 Size of odep_out :  "
-      ^ (List.length odep_out |> Int.to_string)
-      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
-    (* let found_dep =
-             Dep.Map.existsi deps ~f:(fun dep d ->
-                 match dep with
-                 | File_selector _ -> true
-                 | _ -> false)
-           in
-           if Option.is_some found_dep then
-             Dune_util.Log.info
-                   [ Pp.textf "Found file selector  :%s" (Dep.Fact.to_dyn (Option.value_exn found_dep) |> Dyn.to_string))  ])
-       else (); *)
-    let dep_to_string d =
-      let open Dep in
-      match d with
-      | Env (* of Env.Var.t *) e -> "Env " ^ e
-      | File (*  of Path.t *) p -> "File" ^ Path.to_string p
-      | Alias (*  of Alias.t *) a ->
-        "Alias " ^ (Alias.name a |> Alias.Name.to_string)
-      | File_selector (*  of File_selector.t *) fs ->
-        "File_selector" ^ (File_selector.dir fs |> Dpath.describe_path)
-      | Universe -> ""
-    in
-
-    let _new_deps =
-      Dep.Map.iteri
-        ~f:(fun x y ->
-          Dune_util.Log.info
-            [ Pp.textf "Iter123  DEP:%s >--< DEP.FACT:%s" (dep_to_string x)
-                (Dep.Fact.to_dyn y |> Dyn.to_string)
-            ])
-        deps
-    in
-    (* List.iter
-      ~f:(fun odep_dep ->
-        Dune_util.Log.info [ Pp.textf "Odep_dep %s" odep_dep ])
-      odep_out; *)
+    (* debug_dep_facts deps
+       ("target123 : " ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()
@@ -832,7 +786,7 @@ end = struct
            })
     in
     let+ { deps = _; targets = _ } =
-      execute_rule_impl ~from:" execute_action_generic_stage2_impl 784 " rule
+      execute_rule_impl rule
         ~rule_kind:
           (Anonymous_action
              { attached_to_alias = Option.is_some act.alias
@@ -952,14 +906,13 @@ end = struct
 
   (* A rule can have multiple targets but calls to [execute_rule] are memoized,
      so the rule will be executed only once. *)
-  let build_file_impl ?(odep_out = []) ?(from = "unknown") path =
+  let build_file_impl path =
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
     | Rule (path, rule) -> (
       let+ { deps = _; targets } =
         Memo.push_stack_frame
-          (fun () ->
-            execute_rule ~odep_out ~from:(from ^ " build_file_impl 910 ") rule)
+          (fun () -> execute_rule rule)
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
@@ -1120,26 +1073,19 @@ end = struct
            ~cutoff:Dep.Fact.Files.equal build_impl)
   end
 
-  let build_file_memo ?(odep_out = []) ?(from = "unknown") () =
+  let build_file_memo =
     let cutoff = Tuple.T2.equal Digest.equal target_kind_equal in
-    Memo.create "build-file"
-      ~input:(module Path)
-      ~cutoff
-      (build_file_impl ~odep_out ~from:(from ^ " build_file_memo 1076  "))
+    Memo.create "build-file" ~input:(module Path) ~cutoff build_file_impl
 
-  let build_file ?(odep_out = []) ?(from = "unknown") path =
-    let _ = from in
-
+  let build_file ?(from = "unknown") path =
     Dune_util.Log.info
       [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
       ];
-    Memo.exec
-      (build_file_memo ~odep_out ~from:(from ^ "build_file 1084") ())
-      path
-    >>| fst
+
+    Memo.exec build_file_memo path >>| fst
 
   let build_dir path =
-    let+ digest, kind = Memo.exec (build_file_memo ()) path in
+    let+ digest, kind = Memo.exec build_file_memo path in
     match kind with
     | Dir_target { generated_file_digests } -> (digest, generated_file_digests)
     | File_target ->
@@ -1153,23 +1099,21 @@ end = struct
 
   let build_alias = Memo.exec build_alias_memo
 
-  let execute_rule_memo ?(odep_out = []) ?(from = "unknown") () =
+  let execute_rule_memo =
     Memo.create "execute-rule"
       ~input:(module Rule)
-      (execute_rule_impl ~odep_out
-         ~from:(from ^ " execute_rule_memo 1101 ")
-         ~rule_kind:Normal_rule)
+      (execute_rule_impl ~rule_kind:Normal_rule)
 
-  let execute_rule ?(odep_out = []) ?(from = "unknown") =
-    Memo.exec
-      (execute_rule_memo ~odep_out ~from:(from ^ " execute_rule 1105 ") ())
+  let execute_rule ?(odep_out = []) =
+    let _ = odep_out in
+    Memo.exec execute_rule_memo
 
   let () =
     Load_rules.set_current_rule_loc (fun () ->
         let+ stack = Memo.get_call_stack () in
         List.find_map stack ~f:(fun frame ->
             match
-              Memo.Stack_frame.as_instance_of frame ~of_:(execute_rule_memo ())
+              Memo.Stack_frame.as_instance_of frame ~of_:execute_rule_memo
             with
             | Some r -> Some (Rule.loc r)
             | None ->
