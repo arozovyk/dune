@@ -626,7 +626,10 @@ end = struct
             ])
         deps
     in
-
+    (* List.iter
+      ~f:(fun odep_dep ->
+        Dune_util.Log.info [ Pp.textf "Odep_dep %s" odep_dep ])
+      odep_out; *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()
