@@ -11,7 +11,17 @@ let register_action_deps :
  fun mode ?(from = "unknown") deps ->
   match mode with
   | Eager ->
-    Build_system.build_deps ~from:(from ^ "->register_action_deps") deps
+    let deps_built =
+      Build_system.build_deps ~from:(from ^ "->register_action_deps") deps
+    in
+
+    Memo.bind deps_built ~f:(fun deps ->
+        Dune_util.Log.info
+          [ Pp.textf " just built some deps coming from --> %s here : %s\n" from
+              (Dep.Facts.to_dyn deps |> Dyn.to_string)
+          ];
+
+        Memo.return deps)
   | Lazy -> Memo.return deps
 
 let dyn_memo_deps ?(from = "unknown") deps =
@@ -48,7 +58,7 @@ let paths ?(from = "unknown ") ?module_deps ps =
   let _ = module_deps in
   deps ~module_deps ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
 
-let path_set ps = deps (Dep.Set.of_files_set ps)
+let path_set ps = deps ~from:"path_set 51 " (Dep.Set.of_files_set ps)
 
 let paths_matching :
     type a. File_selector.t -> a eval_mode -> (Path.Set.t * a Dep.Map.t) Memo.t
@@ -82,7 +92,7 @@ let dyn_path_set paths =
 let dyn_path_set_reuse paths =
   dyn_deps (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
 
-let env_var s = deps (Dep.Set.singleton (Dep.env s))
+let env_var s = deps ~from:" env var 85 " (Dep.Set.singleton (Dep.env s))
 
 let alias a = dep (Dep.alias a)
 

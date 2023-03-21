@@ -265,28 +265,29 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets
       (Action_builder.bind module_deps ~f:(fun _mlist ->
-           (* Dune_util.Log.info
-              [ Pp.textf "Module123 %s deps are :\n%s"
-                  (Module.name m |> Module_name.to_string)
-                  (List.fold_left ~init:""
-                     ~f:(fun i m -> i ^ (Module.name m |> Module_name.to_string))
-                     _mlist)
-              ]; *)
            let _m_list_path =
-             List.map ~f:(fun m -> Module.to_dyn m |> Dyn.to_string) _mlist
+             List.map
+               ~f:(fun m ->
+                 match Module.source ~ml_kind m with
+                 | Some v -> Module.File.path v |> Path.to_string
+                 | None -> "None")
+               _mlist
            in
            List.iteri
-             ~f:(fun i mstr ->
+             ~f:(fun i mdeppath ->
                Dune_util.Log.info
-                 [ Pp.textf "Dog123 numero : %d : for %s is %s\n" i
+                 [ Pp.textf "Ocamldep dep numero : %d : for %s is %s\n" i
                      (Module.name m |> Module_name.to_string)
-                     mstr
+                     mdeppath
                  ])
              _m_list_path;
-           Action_builder.paths ~module_deps
+           Action_builder.paths
              ~from:
-               (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))
-               ^ "->build_cm 253")
+               ("module compilation for  "
+               ^ (Module.name m |> Module_name.to_string))
+             (* ~from:
+                (("module in question " ^ (Module.to_dyn m |> Dyn.to_string))
+                ^ "->build_cm 253") *)
              extra_deps))
     >>> Action_builder.with_no_targets other_cm_files
     >>> Command.run ~dir:(Path.build ctx.build_dir) compiler

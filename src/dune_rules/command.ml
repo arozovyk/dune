@@ -82,7 +82,7 @@ let rec expand :
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
     Action_builder.with_no_targets
-      (Action_builder.map (Action_builder.deps deps) ~f:(fun () -> []))
+      (Action_builder.map (Action_builder.deps ~from:"command expand 85" deps) ~f:(fun () -> []))
   | Hidden_targets fns ->
     Action_builder.with_file_targets ~file_targets:fns
       (Action_builder.return [])

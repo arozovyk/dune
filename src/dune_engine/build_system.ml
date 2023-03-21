@@ -305,7 +305,9 @@ end = struct
     | File_selector g ->
       let path = File_selector.dir g in
       Dune_util.Log.info
-        [ Pp.textf "File selector123 path %s" (Dpath.describe_path path) ];
+        [ Pp.textf "File selector123 path %s coming from ->>> %s"
+            (Dpath.describe_path path) from
+        ];
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
@@ -1070,10 +1072,11 @@ end = struct
     Memo.create "build-file" ~input:(module Path) ~cutoff build_file_impl
 
   let build_file ?(from = "unknown") path =
+    let _ = from in
+
     Dune_util.Log.info
       [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
       ];
-
     Memo.exec build_file_memo path >>| fst
 
   let build_dir path =
