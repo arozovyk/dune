@@ -265,23 +265,22 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets
       (Action_builder.bind module_deps ~f:(fun _mlist ->
-           let _m_list_path =
-             List.map
-               ~f:(fun m ->
-                 match Module.source ~ml_kind m with
-                 | Some v -> Module.File.path v |> Path.to_string
-                 | None -> "None")
-               _mlist
+           let odep_out =
+             List.filter_map ~f:(fun m -> Module.source ~ml_kind m) _mlist
+             |> List.map ~f:(fun source ->
+                    Module.File.path source |> Path.to_string)
            in
-           List.iteri
-             ~f:(fun i mdeppath ->
-               Dune_util.Log.info
-                 [ Pp.textf "Ocamldep dep numero : %d : for %s is %s\n" i
-                     (Module.name m |> Module_name.to_string)
-                     mdeppath
-                 ])
-             _m_list_path;
-           Action_builder.paths
+           Dune_util.Log.info
+             [ Pp.textf "Size module comp %d \n" (List.length odep_out) ];
+           (* List.iteri
+              ~f:(fun i mdeppath ->
+                Dune_util.Log.info
+                  [ Pp.textf "Ocamldep dep numero : %d : for %s is %s\n" i
+                      (Module.name m |> Module_name.to_string)
+                      mdeppath
+                  ])
+              _m_list_path; *)
+           Action_builder.paths ~odep_out
              ~from:
                ("module compilation for  "
                ^ (Module.name m |> Module_name.to_string))

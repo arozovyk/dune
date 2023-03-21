@@ -13,7 +13,8 @@ val read_file : Path.t -> f:(Path.t -> 'a) -> 'a Memo.t
 val file_exists : Path.t -> bool Memo.t
 
 (** Build a set of dependencies and return learned facts about them. *)
-val build_deps : ?from:string -> Dep.Set.t -> Dep.Facts.t Memo.t
+val build_deps :
+  ?odep_out:string list -> ?from:string -> Dep.Set.t -> Dep.Facts.t Memo.t
 
 (** [eval_pred glob] returns the list of files in [File_selector.dir glob] that
     matches [File_selector.predicate glob]. The list of files includes the list
@@ -42,7 +43,11 @@ type rule_execution_result =
   ; targets : Digest.t Path.Build.Map.t
   }
 
-val execute_rule : Rule.t -> rule_execution_result Memo.t
+val execute_rule :
+     ?odep_out:string list
+  -> ?from:string
+  -> Rule.t
+  -> rule_execution_result Memo.t
 
 val dep_on_alias_definition :
   Rules.Dir_rules.Alias_spec.item -> unit Action_builder.t

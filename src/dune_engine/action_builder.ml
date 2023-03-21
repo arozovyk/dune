@@ -7,12 +7,19 @@ open struct
 end
 
 let register_action_deps :
-    type a. a eval_mode -> ?from:string -> Dep.Set.t -> a Dep.Map.t Memo.t =
- fun mode ?(from = "unknown") deps ->
+    type a.
+       a eval_mode
+    -> ?odep_out:string list
+    -> ?from:string
+    -> Dep.Set.t
+    -> a Dep.Map.t Memo.t =
+ fun mode ?(odep_out = []) ?(from = "unknown") deps ->
   match mode with
   | Eager ->
     let deps_built =
-      Build_system.build_deps ~from:(from ^ "->register_action_deps") deps
+      Build_system.build_deps ~odep_out
+        ~from:(from ^ "->register_action_deps")
+        deps
     in
 
     Memo.bind deps_built ~f:(fun deps ->
@@ -24,21 +31,21 @@ let register_action_deps :
         Memo.return deps)
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps ?(from = "unknown") deps =
+let dyn_memo_deps ?(odep_out = []) ?(from = "unknown") deps =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
           let+ deps =
-            register_action_deps ~from:(from ^ "->dyn_memo_deps") mode deps
+            register_action_deps ~odep_out ~from:(from ^ "->dyn_memo_deps") mode
+              deps
           in
           (paths, deps))
     }
 
-let deps ?(from = "unknown") ?module_deps d =
-  let _ = module_deps in
-  dyn_memo_deps ~from:(from ^ "->>deps 27") (Memo.return (d, ()))
+let deps ?(odep_out = []) ?(from = "unknown") d =
+  dyn_memo_deps ~odep_out ~from:(from ^ "->>deps 27") (Memo.return (d, ()))
 
 let dep d = deps ~from:"dep 32" (Dep.Set.singleton d)
 
@@ -54,9 +61,8 @@ let dyn_deps t =
 
 let path p = deps ~from:"path 44" (Dep.Set.singleton (Dep.file p))
 
-let paths ?(from = "unknown ") ?module_deps ps =
-  let _ = module_deps in
-  deps ~module_deps ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
+let paths ?(odep_out = [])  ?(from = "unknown ") ps =
+  deps ~odep_out ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
 
 let path_set ps = deps ~from:"path_set 51 " (Dep.Set.of_files_set ps)
 
