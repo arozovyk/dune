@@ -63,9 +63,12 @@ type t = private
   ; info : Info.t
   ; loc : Loc.t
   ; dir : Path.Build.t  (** Directory where all the targets are produced. *)
+  ; odep_out : string list
   }
 
 include Comparable_intf.S with type key := t
+
+val with_odep_out : t -> string list -> t
 
 val equal : t -> t -> bool
 

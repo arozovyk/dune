@@ -389,7 +389,7 @@ end = struct
       ( rule_digest_version (* Update when changing the rule digest scheme. *)
       , sandbox_mode
       , Dep.Facts.digest deps ~env
-      , file_targets @ dir_targets
+      , file_targets @ dir_targets @ rule.odep_out
       , Option.map rule.context ~f:(fun c -> Context_name.to_string c.name)
       , Action.for_shell action
       , can_go_in_shared_cache
@@ -561,9 +561,23 @@ end = struct
       ]
 
   let execute_rule_impl ~rule_kind rule =
-    let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
+    let { Rule.id = _
+        ; targets
+        ; dir
+        ; context
+        ; mode
+        ; action
+        ; info = _
+        ; loc
+        ; odep_out
+        } =
       rule
     in
+    Dune_util.Log.info
+      [ Pp.textf "Dir : %s Vals :%s sizee %d" (Path.Build.to_string dir)
+          (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ "\n") odep_out)
+          (List.length odep_out)
+      ];
     (*     Dune_util.Log.info [ Pp.textf "Size of odep : %d" (List.length odep_out) ];
  *)
     (* We run [State.start_rule_exn ()] entirely for its side effect, so one
@@ -1112,8 +1126,7 @@ end = struct
       (execute_rule_impl ~rule_kind:Normal_rule)
 
   let execute_rule ?(odep_out = []) rule =
-    Dune_util.Log.info [ Pp.textf "Odep out size %d" (List.length odep_out) ];
-
+    let rule = Rule.with_odep_out rule odep_out in
     Memo.exec execute_rule_memo rule
 
   let () =
