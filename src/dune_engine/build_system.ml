@@ -238,7 +238,8 @@ module type Rec = sig
       expansion. *)
   val build_alias : Alias.t -> Dep.Fact.Files.t Memo.t
 
-  val build_file : ?from:string -> Path.t -> Digest.t Memo.t
+  val build_file :
+    ?odep_out:string list -> ?from:string -> Path.t -> Digest.t Memo.t
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
@@ -282,7 +283,10 @@ and Exported : sig
   (* The below two definitions are useless, but if we remove them we get an
      "Undefined_recursive_module" exception. *)
 
-  val build_file_memo : (Path.t, Digest.t * target_kind) Memo.Table.t
+  val build_file_memo :
+       ?odep_out:string list
+    -> unit
+    -> (Path.t, Digest.t * target_kind) Memo.Table.t
     [@@warning "-32"]
 
   val build_alias_memo : (Alias.t, Dep.Fact.Files.t) Memo.Table.t
@@ -297,15 +301,13 @@ end = struct
      fact about the world. To do that, it needs to do some building. *)
   let build_dep :
       ?odep_out:string list -> ?from:string -> Dep.t -> Dep.Fact.t Memo.t =
-   fun ?(odep_out = []) ?(from = "unknown") ->
-    Dune_util.Log.info [ Pp.textf "Size of odep : %d" (List.length odep_out) ];
-    function
+   fun ?(odep_out = []) ?(from = "unknown") -> function
     | Alias a ->
       let+ digests = build_alias a in
       (* Fact: alias [a] expands to the set of file-digest pairs [digests] *)
       Dep.Fact.alias a digests
     | File f ->
-      let+ digest = build_file ~from:(from ^ "301") f in
+      let+ digest = build_file ~odep_out ~from:(from ^ "301") f in
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
@@ -562,6 +564,8 @@ end = struct
     let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
       rule
     in
+    (*     Dune_util.Log.info [ Pp.textf "Size of odep : %d" (List.length odep_out) ];
+ *)
     (* We run [State.start_rule_exn ()] entirely for its side effect, so one
        might be tempted to use [Memo.of_non_reproducible_fiber] here but that is
        wrong, because that would force us to rerun [execute_rule_impl] on every
@@ -906,13 +910,13 @@ end = struct
 
   (* A rule can have multiple targets but calls to [execute_rule] are memoized,
      so the rule will be executed only once. *)
-  let build_file_impl path =
+  let build_file_impl ?(odep_out = []) path =
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
     | Rule (path, rule) -> (
       let+ { deps = _; targets } =
         Memo.push_stack_frame
-          (fun () -> execute_rule rule)
+          (fun () -> execute_rule ~odep_out rule)
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
@@ -1073,19 +1077,22 @@ end = struct
            ~cutoff:Dep.Fact.Files.equal build_impl)
   end
 
-  let build_file_memo =
+  let build_file_memo ?(odep_out = []) () =
     let cutoff = Tuple.T2.equal Digest.equal target_kind_equal in
-    Memo.create "build-file" ~input:(module Path) ~cutoff build_file_impl
+    Memo.create "build-file"
+      ~input:(module Path)
+      ~cutoff
+      (build_file_impl ~odep_out)
 
-  let build_file ?(from = "unknown") path =
+  let build_file ?(odep_out = []) ?(from = "unknown") path =
     Dune_util.Log.info
       [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
       ];
 
-    Memo.exec build_file_memo path >>| fst
+    Memo.exec (build_file_memo ~odep_out ()) path >>| fst
 
   let build_dir path =
-    let+ digest, kind = Memo.exec build_file_memo path in
+    let+ digest, kind = Memo.exec (build_file_memo ()) path in
     match kind with
     | Dir_target { generated_file_digests } -> (digest, generated_file_digests)
     | File_target ->
@@ -1104,9 +1111,10 @@ end = struct
       ~input:(module Rule)
       (execute_rule_impl ~rule_kind:Normal_rule)
 
-  let execute_rule ?(odep_out = []) =
-    let _ = odep_out in
-    Memo.exec execute_rule_memo
+  let execute_rule ?(odep_out = []) rule =
+    Dune_util.Log.info [ Pp.textf "Odep out size %d" (List.length odep_out) ];
+
+    Memo.exec execute_rule_memo rule
 
   let () =
     Load_rules.set_current_rule_loc (fun () ->
