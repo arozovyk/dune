@@ -58,11 +58,13 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
     List.singleton interface_module |> Action_builder.return |> Memo.return
   | _ -> (
     let+ deps = Ocamldep.deps_of md ~ml_kind m in
+   
     match Modules.alias_for modules m with
     | [] -> deps
     | aliases ->
       let open Action_builder.O in
       let+ deps = deps in
+
       aliases @ deps)
 
 let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
@@ -111,17 +113,20 @@ let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) =
       if Module.has m ~ml_kind then f sourced_module
       else Memo.return (Action_builder.return [])
     in
-    match m with
-    | Imported_from_vlib _ ->
-      skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
-    | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
-    | Impl_of_virtual_module impl_or_vlib -> (
-      deps_of md ~ml_kind
-      @@
-      let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
-      match ml_kind with
-      | Intf -> Imported_from_vlib m
-      | Impl -> Normal m)
+    let dog =
+      match m with
+      | Imported_from_vlib _ ->
+        skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
+      | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
+      | Impl_of_virtual_module impl_or_vlib -> (
+        deps_of md ~ml_kind
+        @@
+        let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
+        match ml_kind with
+        | Intf -> Imported_from_vlib m
+        | Impl -> Normal m)
+    in
+    dog
 
 (** Tests whether a set of modules is a singleton *)
 let has_single_file modules = Option.is_some @@ Modules.as_singleton modules
@@ -150,6 +155,7 @@ let for_module md module_ =
 
 let rules md =
   let modules = md.modules in
+
   match Modules.as_singleton modules with
   | Some m -> Memo.return (Dep_graph.Ml_kind.dummy m)
   | None ->

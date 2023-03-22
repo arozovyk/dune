@@ -13,8 +13,7 @@ let register_action_deps :
     -> ?from:string
     -> Dep.Set.t
     -> a Dep.Map.t Memo.t =
- fun mode ?(odep_out = []) ?(from = "unknown") deps ->
-
+ fun mode ?(odep_out = [ "reg_action_deps_default" ]) ?(from = "unknown") deps ->
   match mode with
   | Eager ->
     let deps_built =
@@ -24,11 +23,10 @@ let register_action_deps :
     in
 
     Memo.bind deps_built ~f:(fun deps ->
-        Dune_util.Log.info
-          [ Pp.textf " just built some deps coming from --> %s here : %s\n" from
-              (Dep.Facts.to_dyn deps |> Dyn.to_string)
-          ];
-
+        (* Dune_util.Log.info
+           [ Pp.textf " just built some deps coming from --> %s here : %s\n" from
+               (Dep.Facts.to_dyn deps |> Dyn.to_string)
+           ]; *)
         Memo.return deps)
   | Lazy -> Memo.return deps
 
@@ -50,20 +48,21 @@ let deps ?(odep_out = []) ?(from = "unknown") d =
 
 let dep d = deps ~from:"dep 32" (Dep.Set.singleton d)
 
-let dyn_deps t =
+let dyn_deps ?(from = "unknown") t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
-          let+ deps = register_action_deps mode deps in
+          let+ deps =
+            register_action_deps ~from:(from ^ "-->dyn_deps 57") mode deps
+          in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
 let path p = deps ~from:"path 44" (Dep.Set.singleton (Dep.file p))
 
-let paths ?(odep_out = [])  ?(from = "unknown ") ps =
-
+let paths ?(odep_out = []) ?(from = "unknown ") ps =
   deps ~odep_out ~from:(from ^ "->paths 46") (Dep.Set.of_files ps)
 
 let path_set ps = deps ~from:"path_set 51 " (Dep.Set.of_files_set ps)
@@ -89,16 +88,21 @@ let paths_matching ~loc:_ g =
 let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 
 let dyn_paths paths =
-  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
+  dyn_deps ~from:" dyn_paths 89 "
+    (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
 
-let dyn_paths_unit paths =
-  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+let dyn_paths_unit ?(from = "unknown") paths =
+  dyn_deps
+    ~from:(from ^ " dyn_paths_unit 92  ")
+    (paths >>| fun paths -> ((), Dep.Set.of_files paths))
 
 let dyn_path_set paths =
-  dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))
+  dyn_deps ~from:" dyn_path_set  95 "
+    (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))
 
 let dyn_path_set_reuse paths =
-  dyn_deps (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
+  dyn_deps ~from:" dyn_path_set_reuse 98 "
+    (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
 
 let env_var s = deps ~from:" env var 85 " (Dep.Set.singleton (Dep.env s))
 

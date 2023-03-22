@@ -60,9 +60,12 @@ module T = struct
     ; loc : Loc.t
     ; dir : Path.Build.t
     ; odep_out : string list
+    ; from : string
     }
 
   let with_odep_out a odep_out = { a with odep_out }
+
+  let with_from a from = { a with from }
 
   let compare a b = Id.compare a.id b.id
 
@@ -124,7 +127,8 @@ let make ?(mode = Mode.Standard) ~context ?(info = Info.Internal) ~targets
   ; info
   ; loc
   ; dir
-  ; odep_out = []
+  ; odep_out = [ "Default" ]
+  ; from = "Default"
   }
 
 let set_action t action =

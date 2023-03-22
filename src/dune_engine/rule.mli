@@ -64,11 +64,13 @@ type t = private
   ; loc : Loc.t
   ; dir : Path.Build.t  (** Directory where all the targets are produced. *)
   ; odep_out : string list
+  ; from : string
   }
 
 include Comparable_intf.S with type key := t
 
 val with_odep_out : t -> string list -> t
+val with_from : t -> string   -> t
 
 val equal : t -> t -> bool
 

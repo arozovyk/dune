@@ -15,10 +15,35 @@ end
 open Modules_data
 
 let parse_module_names ~dir ~(unit : Module.t) ~modules words =
+  (* Dune_util.Log.info
+     [ Pp.textf "Calling parse_module_names OCDEP  for unit %s\n %s -->"
+         (Module.name unit |> Module_name.to_string)
+         (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") words)
+     ]; *)
   List.concat_map words ~f:(fun m ->
       let m = Module_name.of_string m in
+      let dd = Modules.find modules m in
+
+      (match dd with
+      | None -> ()
+      | Some s ->
+        Dune_util.Log.info
+          [ Pp.textf "Module.find returned %s -->"
+              (Module.name s |> Module_name.to_string)
+          ]);
       match Modules.find_dep modules ~of_:unit m with
-      | Ok s -> s
+      | Ok s ->
+        Dune_util.Log.info
+          [ Pp.textf "The result is  %s\n %s -->"
+              (Module.name unit |> Module_name.to_string)
+              (List.fold_left ~init:""
+                 ~f:(fun a b -> a ^ b ^ "\n")
+                 (List.map
+                    ~f:(fun x -> Module.name x |> Module_name.to_string)
+                    s))
+          ];
+
+        s
       | Error `Parent_cycle ->
         User_error.raise
           [ Pp.textf "Module %s in directory %s depends on %s."
@@ -87,7 +112,12 @@ let deps_of
         ]
       >>| Action.Full.add_sandbox sandbox)
   in
-  let+ () =
+  (* Dune_util.Log.info
+     [ Pp.textf "Calling deps_of OCDEP  for unit %s\n %s -->"
+         (Module.name unit |> Module_name.to_string)
+         (Path.Build.to_string ocamldep_output)
+     ]; *)
+  let+ _res =
     let produce_all_deps =
       let transitive_deps modules =
         let transive_dep m =
@@ -107,28 +137,46 @@ let deps_of
       let open Action_builder.O in
       let paths =
         let+ lines = Action_builder.lines_of (Path.build ocamldep_output) in
-        let immediate_deps =
-          parse_deps_exn ~file:(Module.File.path source) lines
-          |> parse_module_names ~dir:md.dir ~unit ~modules
+
+        let immediate_deps, odep_out =
+          let parsed = parse_deps_exn ~file:(Module.File.path source) lines in
+          (* Dune_util.Log.info
+             [ Pp.textf "Calling deps_of OCDEP  for unit %s\n %s -->"
+                 (Module.name unit |> Module_name.to_string)
+                 (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") parsed)
+             ]; *)
+          (parsed |> parse_module_names ~dir:md.dir ~unit ~modules, parsed)
         in
+        let _ = odep_out in
         ( transitive_deps immediate_deps
         , List.map immediate_deps ~f:(fun m ->
-              Module.obj_name m |> Module_name.Unique.to_string) )
+              Module.obj_name m |> Module_name.Unique.to_string)
+        , odep_out )
       in
-      Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
-        (let+ sources, extras =
-           Action_builder.dyn_paths
-             (let+ sources, extras = paths in
-              ((sources, extras), sources))
-         in
-         Action.Merge_files_into (sources, extras, all_deps_file))
+      let action' =
+        let+ sources, extras, odep_out =
+          Action_builder.dyn_paths
+            (let+ sources, extras, odep_out = paths in
+
+             ((sources, extras, odep_out), sources))
+        in
+        let action = Action.Merge_files_into (sources, extras, all_deps_file) in
+        (action, odep_out)
+      in
+      Action_builder.with_file_targets ~file_targets:[ all_deps_file ] action'
     in
-    Action_builder.With_targets.map ~f:Action.Full.make produce_all_deps
+
+    Action_builder.With_targets.map
+      ~f:(fun (action, _) -> Action.Full.make action)
+      produce_all_deps
     |> Super_context.add_rule sctx ~dir
   in
+
   let all_deps_file = Path.build all_deps_file in
-  Action_builder.lines_of all_deps_file
-  |> Action_builder.map ~f:(parse_compilation_units ~modules)
+
+  Action_builder.map
+    ~f:(fun d -> parse_compilation_units ~modules d ,3)
+    (Action_builder.lines_of all_deps_file)
   |> Action_builder.memoize (Path.to_string all_deps_file)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =

@@ -123,11 +123,19 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   (let open Option.O in
   let* compiler = compiler in
   let ml_kind = Lib_mode.Cm_kind.source cm_kind in
+
   let dep_graph =
     Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
   in
   let module_deps = Dep_graph.deps_of dep_graph m in
+(*   let ocaml_module_data = CC.ocamldep_modules_data cctx in
+ *)
+  (*   let+ graph = Dep_rules.rules ocaml_module_data in *)
+  (* let _ =
+       Action_builder.bind module_deps ~f:(fun mlist ->
 
+           Dep_graph.deps_of dep_graph m)
+     in *)
   let+ src = Module.file m ~ml_kind in
   let dst = Obj_dir.Module.cm_file_exn obj_dir m ~kind:cm_kind in
   let obj =
@@ -136,6 +144,17 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   in
 
   let open Memo.O in
+(*   let* _module_deps' =
+    Ocamldep.deps_of' ~ml_kind ocaml_module_data m
+    (* Memo.bind  ~f:(fun ab ->
+
+        Dune_util.Log.info
+          [ Pp.textf "wierd ml list size for module %s : %d"
+              (Module.name m |> Module_name.to_string)
+              (List.length ml)
+          ];
+        Memo.return ()) *)
+  in *)
   let* extra_args, extra_deps, other_targets =
     if precompiled_cmi then Memo.return (force_read_cmi src, [], [])
     else
@@ -264,14 +283,27 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     ?loc:(CC.loc cctx)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets
-      (Action_builder.bind module_deps ~f:(fun _mlist ->
+      (Action_builder.bind module_deps ~f:(fun  mlist ->
+           (* Dune_util.Log.info
+              [ Pp.textf " compiling module %s "
+                  (Module.name m |> Module_name.to_string)
+              ]; *)
            let odep_out =
-             List.filter_map ~f:(fun m -> Module.source ~ml_kind m) _mlist
-             |> List.map ~f:(fun source ->
-                    Module.File.path source |> Path.to_string)
-           in
-           Dune_util.Log.info
-             [ Pp.textf "Size module comp %d \n" (List.length odep_out) ];
+                List.map ~f:(fun m -> Module.to_dyn m |> Dyn.to_string) mlist
+              in
+
+              let odep_out =
+                Printf.sprintf "---Deps of module name: %s path :%s:\n"
+                  (Module.name m |> Module_name.to_string)
+                  (Module.path m |> Module_name.Path.to_string)
+                :: odep_out
+              in
+              (* Dune_util.Log.info
+                [ Pp.textf "Size module comp %d:\n%s ---\n" (List.length odep_out)
+                    (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
+                ]; *)
+           (* Dune_util.Log.info
+              [ Pp.textf "Size module comp %d \n" (List.length odep_out) ]; *)
            (* List.iteri
               ~f:(fun i mdeppath ->
                 Dune_util.Log.info
@@ -280,7 +312,6 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
                       mdeppath
                   ])
               _m_list_path; *)
-
            Action_builder.paths ~odep_out
              ~from:
                ("module compilation for  "
@@ -507,7 +538,6 @@ let build_root_module cctx root_module =
   build_module cctx root_module
 
 let build_all cctx =
-  Dune_util.Log.info [ Pp.textf "build all\n " ];
   let for_wrapped_compat = lazy (Compilation_context.for_wrapped_compat cctx) in
   let modules = Compilation_context.modules cctx in
   Memo.parallel_iter

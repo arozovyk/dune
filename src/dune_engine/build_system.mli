@@ -43,8 +43,7 @@ type rule_execution_result =
   ; targets : Digest.t Path.Build.Map.t
   }
 
-val execute_rule :
-  ?odep_out:string list -> Rule.t -> rule_execution_result Memo.t
+val execute_rule : Rule.t -> rule_execution_result Memo.t
 
 val dep_on_alias_definition :
   Rules.Dir_rules.Alias_spec.item -> unit Action_builder.t
