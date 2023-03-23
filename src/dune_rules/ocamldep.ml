@@ -10,6 +10,11 @@ module Modules_data = struct
     ; stdlib : Ocaml_stdlib.t option
     ; sandbox : Sandbox_config.t
     }
+
+  type odep_out =
+    { deps : string list Action_builder.t
+    ; source : Module.File.t
+    }
 end
 
 open Modules_data
@@ -22,27 +27,17 @@ let parse_module_names ~dir ~(unit : Module.t) ~modules words =
      ]; *)
   List.concat_map words ~f:(fun m ->
       let m = Module_name.of_string m in
-      let dd = Modules.find modules m in
-
-      (match dd with
-      | None -> ()
-      | Some s ->
-        Dune_util.Log.info
-          [ Pp.textf "Module.find returned %s -->"
-              (Module.name s |> Module_name.to_string)
-          ]);
       match Modules.find_dep modules ~of_:unit m with
       | Ok s ->
-        Dune_util.Log.info
-          [ Pp.textf "The result is  %s\n %s -->"
-              (Module.name unit |> Module_name.to_string)
-              (List.fold_left ~init:""
-                 ~f:(fun a b -> a ^ b ^ "\n")
-                 (List.map
-                    ~f:(fun x -> Module.name x |> Module_name.to_string)
-                    s))
-          ];
-
+        (* Dune_util.Log.info
+           [ Pp.textf "The result is  %s\n %s -->"
+               (Module.name unit |> Module_name.to_string)
+               (List.fold_left ~init:""
+                  ~f:(fun a b -> a ^ b ^ "\n")
+                  (List.map
+                     ~f:(fun x -> Module.name x |> Module_name.to_string)
+                     s))
+           ]; *)
         s
       | Error `Parent_cycle ->
         User_error.raise
@@ -175,7 +170,8 @@ let deps_of
       ~f:(fun x -> parse_compilation_units ~modules x)
       (Action_builder.lines_of all_deps_file)
   in
-  ((Action_builder.memoize (Path.to_string all_deps_file)) md_l, lines)
+  let odep_out = { source; deps = lines } in
+  ((Action_builder.memoize (Path.to_string all_deps_file)) md_l, odep_out)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
   let all_deps_file = Obj_dir.Module.dep obj_dir (Transitive (unit, ml_kind)) in

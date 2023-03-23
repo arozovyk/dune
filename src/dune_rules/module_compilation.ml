@@ -292,12 +292,12 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
                 List.map ~f:(fun m -> Module.to_dyn m |> Dyn.to_string) mlist
               in
 
-              let odep_out =
+              (* let odep_out =
                 Printf.sprintf "---Deps of module name: %s path :%s:\n"
                   (Module.name m |> Module_name.to_string)
                   (Module.path m |> Module_name.Path.to_string)
                 :: odep_out
-              in
+              in *)
               (* Dune_util.Log.info
                 [ Pp.textf "Size module comp %d:\n%s ---\n" (List.length odep_out)
                     (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
