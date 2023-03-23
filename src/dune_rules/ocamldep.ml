@@ -117,7 +117,7 @@ let deps_of
          (Module.name unit |> Module_name.to_string)
          (Path.Build.to_string ocamldep_output)
      ]; *)
-  let+ _res =
+  let+ _ =
     let produce_all_deps =
       let transitive_deps modules =
         let transive_dep m =
@@ -147,36 +147,29 @@ let deps_of
              ]; *)
           (parsed |> parse_module_names ~dir:md.dir ~unit ~modules, parsed)
         in
-        let _ = odep_out in
         ( transitive_deps immediate_deps
         , List.map immediate_deps ~f:(fun m ->
               Module.obj_name m |> Module_name.Unique.to_string)
         , odep_out )
       in
-      let action' =
-        let+ sources, extras, odep_out =
-          Action_builder.dyn_paths
-            (let+ sources, extras, odep_out = paths in
-
-             ((sources, extras, odep_out), sources))
-        in
-        let action = Action.Merge_files_into (sources, extras, all_deps_file) in
-        (action, odep_out)
-      in
-      Action_builder.with_file_targets ~file_targets:[ all_deps_file ] action'
+      Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
+        (let+ sources, extras =
+           Action_builder.dyn_paths
+             (let+ sources, extras, _d = paths in
+              ((sources, extras), sources))
+         in
+         Action.Merge_files_into (sources, extras, all_deps_file))
     in
-
-    Action_builder.With_targets.map
-      ~f:(fun (action, _) -> Action.Full.make action)
-      produce_all_deps
-    |> Super_context.add_rule sctx ~dir
+    let rule =
+      Action_builder.With_targets.map ~f:Action.Full.make produce_all_deps
+    in
+    let+ () = Super_context.add_rule sctx ~dir rule in
+    produce_all_deps
   in
 
   let all_deps_file = Path.build all_deps_file in
-
-  Action_builder.map
-    ~f:(fun d -> parse_compilation_units ~modules d ,3)
-    (Action_builder.lines_of all_deps_file)
+  Action_builder.lines_of all_deps_file
+  |> Action_builder.map ~f:(parse_compilation_units ~modules)
   |> Action_builder.memoize (Path.to_string all_deps_file)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
