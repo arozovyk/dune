@@ -143,7 +143,7 @@ module Module = struct
                 let obj_dir = Compilation_context.obj_dir cctx in
                 let dep_graph = (Compilation_context.dep_graphs cctx).impl in
                 let* modules =
-                  let graph =
+                  let graph  =
                     Dune_rules.Dep_graph.top_closed_implementations dep_graph
                       [ module_ ]
                   in

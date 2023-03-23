@@ -489,7 +489,7 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
   let scope = Compilation_context.scope cctx in
   let* requires_compile = Compilation_context.requires_compile cctx in
   let stdlib_dir = (Compilation_context.context cctx).Context.stdlib_dir in
-  let top_sorted_modules =
+  let top_sorted_modules  =
     let impl_only = Modules.impl_only modules in
     Dep_graph.top_closed_implementations
       (Compilation_context.dep_graphs cctx).impl impl_only

@@ -235,7 +235,7 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
   let+ for_exes =
     Memo.parallel_map programs
       ~f:(fun { Program.name; main_module_name; loc } ->
-        let top_sorted_modules =
+        let top_sorted_modules  =
           let main =
             match Modules.find modules main_module_name with
             | Some m -> m
