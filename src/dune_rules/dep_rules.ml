@@ -55,25 +55,27 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
       | Some m -> m
       | None -> Modules.compat_for_exn modules m
     in
-    ([ interface_module ], [ "" ]) |> Action_builder.return |> Memo.return
-  | _ -> (
+    let a = [ interface_module ] in
+    Memo.return
+      ( Action_builder.return a
+      , { source = Option.value_exn (Module.source m ~ml_kind)
+        ; deps = Action_builder.return [ "deps_of_module" ]
+        } )
+  | _ ->
     let+ deps, odep_out = Ocamldep.deps_of md ~ml_kind m in
+    let fst_r =
+      match Modules.alias_for modules m with
+      | [] ->
+        let open Action_builder.O in
+        let+ deps = deps in
+        deps
+      | aliases ->
+        let open Action_builder.O in
+        let+ deps = deps in
 
-    match Modules.alias_for modules m with
-    | [] ->
-      let open Action_builder.O in
-      let+ deps = deps in
-      (deps, [ "" ])
-    | aliases ->
-      let open Action_builder.O in
-      let* deps = deps in
-
-      let+ lines = odep_out.deps in
-      let parsed =
-        Ocamldep.parse_deps_exn ~file:(Module.File.path odep_out.source) lines
-      in
-
-      (aliases @ deps, parsed))
+        aliases @ deps
+    in
+    (fst_r, odep_out)
 
 let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     sourced_module =
@@ -91,7 +93,10 @@ let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     let+ deps =
       ooi_deps md ~dune_version ~vlib_obj_map ~ml_kind sourced_module
     in
-    Action_builder.map deps ~f:(List.map ~f:Modules.Sourced_module.to_module)
+    ( Action_builder.map deps ~f:(List.map ~f:Modules.Sourced_module.to_module)
+    , { source = Module.source ~ml_kind m |> Option.value_exn
+      ; deps = Action_builder.return [ "deps_of_vlib_module~~~>" ]
+      } )
   | Some lib ->
     let modules = Vimpl.vlib_modules vimpl in
     let info = Lib.Local.info lib in
