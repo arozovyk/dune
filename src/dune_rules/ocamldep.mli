@@ -24,6 +24,8 @@ module Modules_data : sig
     }
 end
 
+val odep_dummy : Module.File.t -> string -> Modules_data.odep_out
+
 val parse_deps_exn : file:Path.t -> string list -> string list
 
 val deps_of :

@@ -3,7 +3,9 @@ open Action_builder.O
 
 type t =
   { dir : Path.Build.t
-  ; per_module : Module.t list Action_builder.t Module_name.Unique.Map.t
+  ; per_module :
+      (Module.t list Action_builder.t * Ocamldep.Modules_data.odep_out)
+      Module_name.Unique.Map.t
   }
 
 let make ~dir ~per_module = { dir; per_module }
@@ -25,7 +27,17 @@ module Top_closure = Top_closure.Make (Module_name.Unique.Set) (Action_builder)
 let top_closed t modules =
   let+ res =
     Top_closure.top_closure modules ~key:Module.obj_name ~deps:(fun m ->
-        Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m))
+        (* let dummy =   Ocamldep.odep_dummy (Module.source m |> Option.value_exn) ""in  *)
+        let r, _odep_out =
+          Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m)
+        in
+        (* let+ d = odep_out.deps in
+           Dune_util.Log.info
+             [ Pp.textf "Wtf do i do with %s \n %s"
+                 (Module.name m |> Module_name.to_string)
+                 (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ " \n") d)
+             ]; *)
+        r)
   in
   match res with
   | Ok modules -> modules
@@ -57,10 +69,13 @@ let top_closed_implementations t modules =
   |> Action_builder.memoize "top sorted implementations"
 
 let dummy (m : Module.t) =
+  let odep_dummy =
+    Ocamldep.odep_dummy (Module.source ~ml_kind:Impl m |> Option.value_exn) "dep_graph_dummy"
+  in
   { dir = Path.Build.root
   ; per_module =
-      Module_name.Unique.Map.singleton (Module.obj_name m)
-        (Action_builder.return [])
+      (Module_name.Unique.Map.singleton (Module.obj_name m)
+        (Action_builder.return [],odep_dummy))
   }
 
 module Ml_kind = struct

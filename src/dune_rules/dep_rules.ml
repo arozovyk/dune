@@ -110,7 +110,8 @@ let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     in
     Ocamldep.read_deps_of ~obj_dir:vlib_obj_dir ~modules ~ml_kind m
 
-let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) =
+let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) :
+    (Module.t list Action_builder.t * odep_out) Memo.t =
   let is_alias =
     match m with
     | Impl_of_virtual_module _ -> false
@@ -119,12 +120,22 @@ let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) =
       | Alias _ -> true
       | _ -> false)
   in
-  if is_alias then Memo.return (Action_builder.return [])
+  if is_alias then
+    Memo.return
+      ( Action_builder.return []
+      , Ocamldep.odep_dummy
+          (Module.File.make Dialect.ocaml (Path.in_source ""))
+          "" )
   else
     let skip_if_source_absent f sourced_module =
       let m = Modules.Sourced_module.to_module m in
       if Module.has m ~ml_kind then f sourced_module
-      else Memo.return (Action_builder.return [])
+      else
+        Memo.return
+          ( Action_builder.return []
+          , { deps = Action_builder.return [ "read_deps_of~~~" ]
+            ; source = Module.File.make Dialect.ocaml (Path.in_source "")
+            } )
     in
 
     match m with
@@ -172,8 +183,10 @@ let rules md =
   | None ->
     dict_of_func_concurrently (fun ~ml_kind ->
         let+ per_module =
-          Modules.obj_map modules
-          |> Module_name.Unique.Map_traversals.parallel_map
-               ~f:(fun _obj_name m -> deps_of md ~ml_kind m)
+          let obj_map = Modules.obj_map modules in
+
+          Module_name.Unique.Map_traversals.parallel_map obj_map
+            ~f:(fun _obj_name m -> deps_of md ~ml_kind m)
         in
+
         Dep_graph.make ~dir:md.dir ~per_module)

@@ -5,7 +5,9 @@ open Import
 val for_module :
      Ocamldep.Modules_data.t
   -> Module.t
-  -> Module.t list Action_builder.t Ml_kind.Dict.t Memo.t
+  -> (Module.t list Action_builder.t * Ocamldep.Modules_data.odep_out)
+     Ml_kind.Dict.t
+     Memo.t
 
 val immediate_deps_of :
      Module.t

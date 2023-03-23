@@ -19,6 +19,8 @@ end
 
 open Modules_data
 
+let odep_dummy source s = { source; deps = Action_builder.return [ s ] }
+
 let parse_module_names ~dir ~(unit : Module.t) ~modules words =
   (* Dune_util.Log.info
      [ Pp.textf "Calling parse_module_names OCDEP  for unit %s\n %s -->"

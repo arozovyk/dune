@@ -214,6 +214,7 @@ module Run (P : PARAMS) = struct
         (Compilation_context.ocamldep_modules_data cctx)
         mock_module
     in
+    let deps = Ml_kind.Dict.map ~f:(fun (a, _) -> a) deps in
     let* () =
       Module_compilation.ocamlc_i ~deps cctx mock_module
         ~output:(inferred_mli base)
