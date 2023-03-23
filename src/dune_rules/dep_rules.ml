@@ -55,17 +55,16 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
       | Some m -> m
       | None -> Modules.compat_for_exn modules m
     in
-    List.singleton interface_module |> Action_builder.return |> Memo.return
+    (List.singleton interface_module, [])
+    |> Action_builder.With_targets.return |> Memo.return
   | _ -> (
     let+ deps = Ocamldep.deps_of md ~ml_kind m in
-   
     match Modules.alias_for modules m with
     | [] -> deps
     | aliases ->
-      let open Action_builder.O in
-      let+ deps = deps in
-
-      aliases @ deps)
+      let open Action_builder.With_targets.O in
+      let+ a, b = deps in
+      (aliases @ a, b))
 
 let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     sourced_module =

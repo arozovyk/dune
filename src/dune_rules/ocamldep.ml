@@ -117,7 +117,7 @@ let deps_of
          (Module.name unit |> Module_name.to_string)
          (Path.Build.to_string ocamldep_output)
      ]; *)
-  let+ _res =
+  let+ res =
     let produce_all_deps =
       let transitive_deps modules =
         let transive_dep m =
@@ -147,7 +147,6 @@ let deps_of
              ]; *)
           (parsed |> parse_module_names ~dir:md.dir ~unit ~modules, parsed)
         in
-        let _ = odep_out in
         ( transitive_deps immediate_deps
         , List.map immediate_deps ~f:(fun m ->
               Module.obj_name m |> Module_name.Unique.to_string)
@@ -165,19 +164,23 @@ let deps_of
       in
       Action_builder.with_file_targets ~file_targets:[ all_deps_file ] action'
     in
-
-    Action_builder.With_targets.map
-      ~f:(fun (action, _) -> Action.Full.make action)
-      produce_all_deps
-    |> Super_context.add_rule sctx ~dir
+    let rule =
+      Action_builder.With_targets.map
+        ~f:(fun (action, _) -> Action.Full.make action)
+        produce_all_deps
+    in
+    let+ () = Super_context.add_rule sctx ~dir rule in
+    produce_all_deps
   in
-
+  let line_of_t =
+    Action_builder.lines_of (Path.build all_deps_file)
+    |> Action_builder.with_no_targets
+  in
   let all_deps_file = Path.build all_deps_file in
-
-  Action_builder.map
-    ~f:(fun d -> parse_compilation_units ~modules d ,3)
-    (Action_builder.lines_of all_deps_file)
-  |> Action_builder.memoize (Path.to_string all_deps_file)
+  Action_builder.With_targets.map2
+    ~f:(fun (_, s) l -> (parse_compilation_units ~modules l, s))
+    res line_of_t
+  |> Action_builder.With_targets.memoize (Path.to_string all_deps_file)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
   let all_deps_file = Obj_dir.Module.dep obj_dir (Transitive (unit, ml_kind)) in
