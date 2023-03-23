@@ -185,8 +185,10 @@ let deps_of
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
   let all_deps_file = Obj_dir.Module.dep obj_dir (Transitive (unit, ml_kind)) in
   Action_builder.lines_of (Path.build all_deps_file)
-  |> Action_builder.map ~f:(parse_compilation_units ~modules)
-  |> Action_builder.memoize (Path.Build.to_string all_deps_file)
+  |> Action_builder.with_no_targets
+  |> Action_builder.With_targets.map ~f:(fun x ->
+         (parse_compilation_units ~modules x, []))
+  |> Action_builder.With_targets.memoize (Path.Build.to_string all_deps_file)
 
 let read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit =
   match Module.source ~ml_kind unit with

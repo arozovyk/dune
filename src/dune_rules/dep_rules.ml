@@ -30,8 +30,8 @@ let ooi_deps { vimpl; sctx; dir; obj_dir; modules = _; stdlib = _; sandbox = _ }
   in
   let add_rule = Super_context.add_rule sctx ~dir in
   let read =
-    Action_builder.memoize "ocamlobjinfo"
-      (let open Action_builder.O in
+    Action_builder.With_targets.memoize "ocamlobjinfo"
+      (let open Action_builder.With_targets.O in
       let+ (ooi : Ocamlobjinfo.t) = read in
       Module_name.Unique.Set.to_list ooi.intf
       |> List.filter_map ~f:(fun dep ->
@@ -42,8 +42,8 @@ let ooi_deps { vimpl; sctx; dir; obj_dir; modules = _; stdlib = _; sandbox = _ }
   and+ () =
     add_rule
       (let target = Obj_dir.Module.dep obj_dir (Transitive (m, ml_kind)) in
-       Action_builder.map read ~f:transitive_deps_contents
-       |> Action_builder.write_file_dyn target)
+       Action_builder.With_targets.map read ~f:transitive_deps_contents
+       |> Action_builder.With_targets.write_file_dyn target)
   in
   read
 
@@ -82,7 +82,8 @@ let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     let+ deps =
       ooi_deps md ~dune_version ~vlib_obj_map ~ml_kind sourced_module
     in
-    Action_builder.map deps ~f:(List.map ~f:Modules.Sourced_module.to_module)
+    Action_builder.With_targets.map deps ~f:(fun x ->
+        (List.map ~f:Modules.Sourced_module.to_module x, []))
   | Some lib ->
     let modules = Vimpl.vlib_modules vimpl in
     let info = Lib.Local.info lib in
@@ -105,27 +106,24 @@ let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) =
       | Alias _ -> true
       | _ -> false)
   in
-  if is_alias then Memo.return (Action_builder.return [])
+  if is_alias then Memo.return (Action_builder.With_targets.return ([], []))
   else
     let skip_if_source_absent f sourced_module =
       let m = Modules.Sourced_module.to_module m in
       if Module.has m ~ml_kind then f sourced_module
-      else Memo.return (Action_builder.return [])
+      else Memo.return (Action_builder.With_targets.return ([], []))
     in
-    let dog =
-      match m with
-      | Imported_from_vlib _ ->
-        skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
-      | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
-      | Impl_of_virtual_module impl_or_vlib -> (
-        deps_of md ~ml_kind
-        @@
-        let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
-        match ml_kind with
-        | Intf -> Imported_from_vlib m
-        | Impl -> Normal m)
-    in
-    dog
+    match m with
+    | Imported_from_vlib _ ->
+      skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
+    | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
+    | Impl_of_virtual_module impl_or_vlib -> (
+      deps_of md ~ml_kind
+      @@
+      let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
+      match ml_kind with
+      | Intf -> Imported_from_vlib m
+      | Impl -> Normal m)
 
 (** Tests whether a set of modules is a singleton *)
 let has_single_file modules = Option.is_some @@ Modules.as_singleton modules
@@ -159,7 +157,7 @@ let rules md =
   | Some m -> Memo.return (Dep_graph.Ml_kind.dummy m)
   | None ->
     dict_of_func_concurrently (fun ~ml_kind ->
-        let+ per_module =
+        let+ (per_module) =
           Modules.obj_map modules
           |> Module_name.Unique.Map_traversals.parallel_map
                ~f:(fun _obj_name m -> deps_of md ~ml_kind m)

@@ -3,7 +3,9 @@ open Action_builder.O
 
 type t =
   { dir : Path.Build.t
-  ; per_module : Module.t list Action_builder.t Module_name.Unique.Map.t
+  ; per_module :
+      (Module.t list * string list) Action_builder.With_targets.t
+      Module_name.Unique.Map.t
   }
 
 let make ~dir ~per_module = { dir; per_module }
@@ -60,7 +62,7 @@ let dummy (m : Module.t) =
   { dir = Path.Build.root
   ; per_module =
       Module_name.Unique.Map.singleton (Module.obj_name m)
-        (Action_builder.return [])
+        (Action_builder.With_targets.return ([], []))
   }
 
 module Ml_kind = struct

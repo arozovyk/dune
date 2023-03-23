@@ -30,7 +30,7 @@ val read_deps_of :
   -> modules:Modules.t
   -> ml_kind:Ml_kind.t
   -> Module.t
-  -> Module.t list Action_builder.t
+  -> (Module.t list * string list) Action_builder.With_targets.t
 
 (** [read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit] returns the
     immediate dependencies found in the modules of [modules] for the file with

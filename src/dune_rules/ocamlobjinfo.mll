@@ -63,6 +63,6 @@ let rules ~dir ~(ctx : Context.t) ~sandbox ~unit =
          ; [ Dep unit ]
          ])
       ~stdout_to:output
-  , Action_builder.map ~f:parse (Action_builder.contents (Path.build output))
+  , Action_builder.With_targets.map ~f:parse (Action_builder.With_targets.contents (Path.build output))
   )
 }
