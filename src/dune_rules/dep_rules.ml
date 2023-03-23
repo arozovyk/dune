@@ -57,14 +57,14 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
     in
     List.singleton interface_module |> Action_builder.return |> Memo.return
   | _ -> (
-    let+ deps = Ocamldep.deps_of md ~ml_kind m in
-   
+    let+ deps, _e = Ocamldep.deps_of md ~ml_kind m in
+
     match Modules.alias_for modules m with
     | [] -> deps
     | aliases ->
       let open Action_builder.O in
-      let+ deps = deps in
-
+      let* deps = deps in
+      let+ _x = _e in
       aliases @ deps)
 
 let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind

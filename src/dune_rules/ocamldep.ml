@@ -112,13 +112,16 @@ let deps_of
         ]
       >>| Action.Full.add_sandbox sandbox)
   in
+
   (* Dune_util.Log.info
      [ Pp.textf "Calling deps_of OCDEP  for unit %s\n %s -->"
          (Module.name unit |> Module_name.to_string)
          (Path.Build.to_string ocamldep_output)
      ]; *)
+  let lines = Action_builder.lines_of (Path.build ocamldep_output) in
   let+ _ =
     let produce_all_deps =
+      let open Action_builder.O in
       let transitive_deps modules =
         let transive_dep m =
           let ml_kind m =
@@ -134,10 +137,8 @@ let deps_of
         in
         List.filter_map modules ~f:transive_dep
       in
-      let open Action_builder.O in
       let paths =
-        let+ lines = Action_builder.lines_of (Path.build ocamldep_output) in
-
+        let+ lines = lines in
         let immediate_deps, odep_out =
           let parsed = parse_deps_exn ~file:(Module.File.path source) lines in
           (* Dune_util.Log.info
@@ -155,7 +156,7 @@ let deps_of
       Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
         (let+ sources, extras =
            Action_builder.dyn_paths
-             (let+ sources, extras, _d = paths in
+             (let+ sources, extras, _odep_out = paths in
               ((sources, extras), sources))
          in
          Action.Merge_files_into (sources, extras, all_deps_file))
@@ -168,9 +169,13 @@ let deps_of
   in
 
   let all_deps_file = Path.build all_deps_file in
-  Action_builder.lines_of all_deps_file
-  |> Action_builder.map ~f:(parse_compilation_units ~modules)
-  |> Action_builder.memoize (Path.to_string all_deps_file)
+
+  let md_l =
+    Action_builder.map
+      ~f:(fun x -> parse_compilation_units ~modules x)
+      (Action_builder.lines_of all_deps_file)
+  in
+  ((Action_builder.memoize (Path.to_string all_deps_file)) md_l, lines)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
   let all_deps_file = Obj_dir.Module.dep obj_dir (Transitive (unit, ml_kind)) in
