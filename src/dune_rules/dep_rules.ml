@@ -55,12 +55,15 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
       | Some m -> m
       | None -> Modules.compat_for_exn modules m
     in
-    List.singleton interface_module |> Action_builder.return |> Memo.return
+    ([ interface_module ], [ "" ]) |> Action_builder.return |> Memo.return
   | _ -> (
     let+ deps, odep_out = Ocamldep.deps_of md ~ml_kind m in
 
     match Modules.alias_for modules m with
-    | [] -> deps
+    | [] ->
+      let open Action_builder.O in
+      let+ deps = deps in
+      (deps, [ "" ])
     | aliases ->
       let open Action_builder.O in
       let* deps = deps in
@@ -69,12 +72,8 @@ let deps_of_module ({ modules; _ } as md) ~ml_kind m =
       let parsed =
         Ocamldep.parse_deps_exn ~file:(Module.File.path odep_out.source) lines
       in
-      Dune_util.Log.info
-        [ Pp.textf "Deps of module %s : \n%s"
-            (Module.name m |> Module_name.to_string)
-            (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ "\n") parsed)
-        ];
-      aliases @ deps)
+
+      (aliases @ deps, parsed))
 
 let deps_of_vlib_module ({ obj_dir; vimpl; dir; sctx; _ } as md) ~ml_kind
     sourced_module =
@@ -122,20 +121,18 @@ let rec deps_of md ~ml_kind (m : Modules.Sourced_module.t) =
       if Module.has m ~ml_kind then f sourced_module
       else Memo.return (Action_builder.return [])
     in
-    let dog =
-      match m with
-      | Imported_from_vlib _ ->
-        skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
-      | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
-      | Impl_of_virtual_module impl_or_vlib -> (
-        deps_of md ~ml_kind
-        @@
-        let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
-        match ml_kind with
-        | Intf -> Imported_from_vlib m
-        | Impl -> Normal m)
-    in
-    dog
+
+    match m with
+    | Imported_from_vlib _ ->
+      skip_if_source_absent (deps_of_vlib_module md ~ml_kind) m
+    | Normal m -> skip_if_source_absent (deps_of_module md ~ml_kind) m
+    | Impl_of_virtual_module impl_or_vlib -> (
+      deps_of md ~ml_kind
+      @@
+      let m = Ml_kind.Dict.get impl_or_vlib ml_kind in
+      match ml_kind with
+      | Intf -> Imported_from_vlib m
+      | Impl -> Normal m)
 
 (** Tests whether a set of modules is a singleton *)
 let has_single_file modules = Option.is_some @@ Modules.as_singleton modules
