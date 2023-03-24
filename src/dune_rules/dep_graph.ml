@@ -25,18 +25,36 @@ let deps_of t (m : Module.t) =
 module Top_closure = Top_closure.Make (Module_name.Unique.Set) (Action_builder)
 
 let top_closed t (modules : Module.t list) =
-  let+ res =
-    Top_closure.top_closure modules ~key:Module.obj_name ~deps:(fun m ->
-        Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m) |> fst)
+  (* FIXME: find a way to get needed res type without hacking it this way *)
+  let modules =
+    List.init (List.length modules) ~f:(fun _ -> [ "" ]) |> List.combine modules
   in
+  let+ res =
+    Top_closure.top_closure modules
+      ~key:(fun (m, _) -> Module.obj_name m)
+      ~deps:(fun (m, _) ->
+        let r, odep =
+          Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m)
+        in
+        let r2 = odep.deps in
+        let r3 =
+          Action_builder.map2 r r2 ~f:(fun x odep_out ->
+              let dummies = List.init (List.length x) ~f:(fun _ -> odep_out) in
+              List.combine x dummies)
+        in
+        r3)
+  in
+
   match res with
-  | Ok modules -> modules
+  | Ok modules ->
+    let a, b = List.split modules in
+    (a, if List.is_empty b then List.hd b else [])
   | Error cycle ->
     User_error.raise
       [ Pp.textf "dependency cycle between modules in %s:"
           (Path.Build.to_string t.dir)
       ; Pp.chain cycle ~f:(fun m ->
-            Pp.verbatim (Module_name.to_string (Module.name m)))
+            Pp.verbatim (Module_name.to_string (Module.name (fst m))))
       ]
 
 let top_closed_implementations t modules =
@@ -45,21 +63,24 @@ let top_closed_implementations t modules =
   in
 
   Action_builder.map
-    ~f:(fun mod_l ->
-      let obj_map =
-        List.map modules ~f:(fun x -> (x, x))
-        |> Module.Obj_map.of_list_reduce ~f:(fun x y ->
-               match Module.kind x with
-               | Impl_vmodule -> x
-               | _ -> y)
+    ~f:(fun (mod_l, odep_out) ->
+      let m =
+        let obj_map =
+          List.map modules ~f:(fun x -> (x, x))
+          |> Module.Obj_map.of_list_reduce ~f:(fun x y ->
+                 match Module.kind x with
+                 | Impl_vmodule -> x
+                 | _ -> y)
+        in
+        List.filter_map
+          ~f:(fun m ->
+            match Module.kind m with
+            | Virtual -> Some (Module.Obj_map.find_exn obj_map m)
+            | Intf_only -> None
+            | _ -> Some m)
+          mod_l
       in
-      List.filter_map
-        ~f:(fun m ->
-          match Module.kind m with
-          | Virtual -> Some (Module.Obj_map.find_exn obj_map m)
-          | Intf_only -> None
-          | _ -> Some m)
-        mod_l)
+      (m, odep_out))
     top_c
   |> Action_builder.memoize "top sorted implementations"
 

@@ -282,7 +282,7 @@ let link_rule cc ~runtime ~target ~obj_dir cm ~flags ~linkall
            ~f:(fun x -> x.compile)
            (Super_context.js_of_ocaml_flags sctx ~dir flags))
       |> Action_builder.map ~f:Config.of_flags
-    and+ cm = cm
+    and+ (cm,_) = cm
     and+ linkall = linkall
     and+ libs = Resolve.Memo.read (Compilation_context.requires_link cc)
     and+ { Link_time_code_gen_type.to_link; force_linkall } =
@@ -394,8 +394,8 @@ let setup_separate_compilation_rules sctx components =
           >>= Super_context.add_rule sctx ~dir))
 
 let build_exe cc ~loc ~in_context ~src ~(obj_dir : Path.Build.t Obj_dir.t)
-    ~(top_sorted_modules : Module.t list Action_builder.t) ~promote ~linkall
-    ~link_time_code_gen =
+    ~(top_sorted_modules : (Module.t list * string list) Action_builder.t)
+    ~promote ~linkall ~link_time_code_gen =
   let sctx = Compilation_context.super_context cc in
   let dir = Compilation_context.dir cc in
   let { Js_of_ocaml.In_context.javascript_files; flags } = in_context in

@@ -17,7 +17,7 @@ val deps_of :
   -> Module.t list Import.Action_builder.t * Ocamldep.Modules_data.odep_out
 
 val top_closed_implementations :
-  t -> Module.t list -> Module.t list Action_builder.t
+  t -> Module.t list -> (Module.t list * string list) Action_builder.t
 
 module Ml_kind : sig
   type nonrec t = t Ml_kind.Dict.t

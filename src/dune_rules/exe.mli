@@ -43,7 +43,8 @@ module Linkage : sig
     Context.t -> loc:Loc.t -> Dune_file.Executables.Link_mode.t -> t
 end
 
-type dep_graphs = { for_exes : Module.t list Action_builder.t list }
+type dep_graphs =
+  { for_exes : (Module.t list * string list) Action_builder.t list }
 
 (** {1 High-level functions} *)
 

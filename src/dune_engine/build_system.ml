@@ -603,7 +603,6 @@ end = struct
       if List.length dd == 2 then List.nth dd 1 |> Option.value_exn else "None"
     in
     let _ocamldep_deps = String.split ~on:' ' right in
-
     let found_key =
       Dep.Map.find_key deps ~f:(fun key ->
           match key with
@@ -618,15 +617,20 @@ end = struct
         if
           Targets.Validated.head targets
           |> Path.Build.to_string
-          = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_a.cmi"
+          = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
         then Dep.Map.remove deps dep
         else deps
     in
-
-   (*  _debug_dep_facts deps
-      (* ("target123 : " ^ "from2 ~ " ^ from *)
-      ("odep:--~~->" ^ app ^ "\n"
-      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
+    if
+      Targets.Validated.head targets
+      |> Path.Build.to_string
+      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
+    then Dune_util.Log.info [ Pp.textf " qsd " ]
+    else ();
+    (* _debug_dep_facts deps
+       (* ("target123 : " ^ "from2 ~ " ^ from *)
+       ("odep:--~~->" ^ app ^ "\n"
+       ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
     (* Dune_util.Log.info
        [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
            (List.length odep_out)
@@ -966,12 +970,6 @@ end = struct
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
     | Rule (path, rule') -> (
-      (*  *)
-      (* Dune_util.Log.info
-         [ Pp.textf "123Execting rule for : %s and odep size is : %d"
-             (Targets.Validated.to_dyn rule'.targets |> Dyn.to_string)
-             (List.length odep_out)
-         ]; *)
       let rule = Rule.with_odep_out rule' odep_out in
       let+ { deps = _; targets } =
         Memo.push_stack_frame
@@ -979,14 +977,6 @@ end = struct
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
-      (* Dune_util.Log.info
-           [ Pp.textf "123Execting rule for : %s and odep size is : %d"
-               (Targets.Validated.to_dyn rule'.targets |> Dyn.to_string)
-               (List.length odep_out)
-           ];
-         _debug_dep_facts deps
-           (Printf.sprintf "build_file_impl for file %s"
-              (Path.Build.to_string path)); *)
       match Path.Build.Map.find targets path with
       | Some digest -> (digest, File_target)
       | None -> (
@@ -1149,10 +1139,6 @@ end = struct
       (build_file_impl ~odep_out)
 
   let build_file ?(odep_out = []) path =
-    (* Dune_util.Log.info
-       [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
-       ];
-    *)
     Memo.exec (build_file_memo ~odep_out ()) path >>| fst
 
   let build_dir path =

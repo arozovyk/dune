@@ -12,5 +12,5 @@ val add_files :
 val add_cycle_check :
      Super_context.t
   -> dir:Path.Build.t
-  -> Module.t list Action_builder.t
+  -> (Module.t list * string list) Action_builder.t
   -> unit Memo.t

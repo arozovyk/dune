@@ -3,7 +3,7 @@ open Import
 type t =
   { obj_dir : Path.Build.t Obj_dir.t
   ; modules : Module.t list
-  ; top_sorted_modules : Module.t list Action_builder.t
+  ; top_sorted_modules : (Module.t list * string list) Action_builder.t
   ; ext_obj : string
   ; excluded_modules : Module_name.Set.t
   }
@@ -35,11 +35,11 @@ let unsorted_objects_and_cms t ~mode = objects_and_cms t ~mode t.modules
 
 let top_sorted_cms t ~mode =
   let kind = Mode.cm_kind mode in
-  Action_builder.map t.top_sorted_modules ~f:(fun modules ->
+  Action_builder.map t.top_sorted_modules ~f:(fun (modules, _) ->
       let modules = filter_excluded_modules t modules in
       Obj_dir.Module.L.cm_files t.obj_dir ~kind:(Ocaml kind) modules)
 
 let top_sorted_objects_and_cms t ~mode =
-  Action_builder.map t.top_sorted_modules ~f:(fun modules ->
+  Action_builder.map t.top_sorted_modules ~f:(fun (modules, _) ->
       let modules = filter_excluded_modules t modules in
       objects_and_cms t ~mode modules)

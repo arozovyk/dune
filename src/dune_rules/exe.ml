@@ -132,7 +132,9 @@ let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
   Path.Build.relative (CC.dir cctx) (name ^ linkage.ext)
 
 let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
-    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx =
+    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx
+    ~(top_sorted_modules : (Module.t list * string list) Action_builder.t) =
+  let _ = top_sorted_modules in
   let sctx = CC.super_context cctx in
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
@@ -144,9 +146,11 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
     let prefix =
-      Cm_files.top_sorted_objects_and_cms cm_files ~mode
-      |> Action_builder.dyn_paths_unit
+      Action_builder.bind top_sorted_modules ~f:(fun (_, odep_out) ->
+          Cm_files.top_sorted_objects_and_cms cm_files ~mode
+          |> Action_builder.dyn_paths_unit ~odep_out)
     in
+
     let+ fdo_linker_script_flags = Fdo.Linker_script.flags fdo_linker_script in
     let open Action_builder.With_targets.O in
     (* NB. Below we take care to pass [link_args] last on the command-line for
@@ -219,7 +223,8 @@ let link_js ~name ~loc ~obj_dir ~top_sorted_modules ~link_args ~promote
   Jsoo_rules.build_exe cctx ~loc ~obj_dir ~in_context ~src ~top_sorted_modules
     ~promote ~link_time_code_gen ~linkall
 
-type dep_graphs = { for_exes : Module.t list Action_builder.t list }
+type dep_graphs =
+  { for_exes : (Module.t list * string list) Action_builder.t list }
 
 let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
     ?(embed_in_plugin_libraries = []) ?sandbox ~programs ~linkages ~promote cctx
@@ -281,7 +286,7 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
                     -> (link_args, select_o_files Mode.Byte)
                 in
                 link_exe cctx ~loc ~name ~linkage ~cm_files ~link_time_code_gen
-                  ~promote ~link_args ~o_files ?sandbox)
+                  ~promote ~link_args ~o_files ?sandbox ~top_sorted_modules)
         in
         top_sorted_modules)
   in
