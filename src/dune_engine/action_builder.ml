@@ -7,39 +7,48 @@ open struct
 end
 
 let register_action_deps :
-    type a. a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
- fun mode deps ->
+    type a.
+    a eval_mode -> ?odep_out:string list -> Dep.Set.t -> a Dep.Map.t Memo.t =
+ fun mode ?(odep_out = [ "reg_action_deps_default" ]) deps ->
   match mode with
-  | Eager -> Build_system.build_deps deps
+  | Eager ->
+    let deps_built = Build_system.build_deps ~odep_out deps in
+
+    Memo.bind deps_built ~f:(fun deps ->
+        (* Dune_util.Log.info
+           [ Pp.textf " just built some deps coming from --> %s here : %s\n" from
+               (Dep.Facts.to_dyn deps |> Dyn.to_string)
+           ]; *)
+        Memo.return deps)
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps deps =
+let dyn_memo_deps ?(odep_out = []) deps =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
-          let+ deps = register_action_deps mode deps in
+          let+ deps = register_action_deps ~odep_out mode deps in
           (paths, deps))
     }
 
-let deps d = dyn_memo_deps (Memo.return (d, ()))
+let deps ?(odep_out = []) d = dyn_memo_deps ~odep_out (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps t =
+let dyn_deps ?(odep_out = []) t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
-          let+ deps = register_action_deps mode deps in
+          let+ deps = register_action_deps ~odep_out mode deps in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
 let path p = deps (Dep.Set.singleton (Dep.file p))
 
-let paths ps = deps (Dep.Set.of_files ps)
+let paths ?(odep_out = []) ps = deps ~odep_out (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 
@@ -66,8 +75,8 @@ let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 let dyn_paths paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
 
-let dyn_paths_unit paths =
-  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+let dyn_paths_unit ?(odep_out = []) paths =
+  dyn_deps ~odep_out (paths >>| fun paths -> ((), Dep.Set.of_files paths))
 
 let dyn_path_set paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))

@@ -10,9 +10,16 @@ module Modules_data = struct
     ; stdlib : Ocaml_stdlib.t option
     ; sandbox : Sandbox_config.t
     }
+
+  type odep_out =
+    { deps : string list Action_builder.t
+    ; source : Module.File.t
+    }
 end
 
 open Modules_data
+
+let odep_dummy source s = { source; deps = Action_builder.return [ s ] }
 
 let parse_module_names ~dir ~(unit : Module.t) ~modules words =
   List.concat_map words ~f:(fun m ->
@@ -87,8 +94,10 @@ let deps_of
         ]
       >>| Action.Full.add_sandbox sandbox)
   in
-  let+ () =
+  let lines = Action_builder.lines_of (Path.build ocamldep_output) in
+  let+ _ =
     let produce_all_deps =
+      let open Action_builder.O in
       let transitive_deps modules =
         let transive_dep m =
           let ml_kind m =
@@ -104,9 +113,8 @@ let deps_of
         in
         List.filter_map modules ~f:transive_dep
       in
-      let open Action_builder.O in
       let paths =
-        let+ lines = Action_builder.lines_of (Path.build ocamldep_output) in
+        let+ lines = lines in
         let immediate_deps =
           parse_deps_exn ~file:(Module.File.path source) lines
           |> parse_module_names ~dir:md.dir ~unit ~modules
@@ -123,19 +131,33 @@ let deps_of
          in
          Action.Merge_files_into (sources, extras, all_deps_file))
     in
-    Action_builder.With_targets.map ~f:Action.Full.make produce_all_deps
-    |> Super_context.add_rule sctx ~dir
+    let rule =
+      Action_builder.With_targets.map ~f:Action.Full.make produce_all_deps
+    in
+    let+ () = Super_context.add_rule sctx ~dir rule in
+    produce_all_deps
   in
+
   let all_deps_file = Path.build all_deps_file in
-  Action_builder.lines_of all_deps_file
-  |> Action_builder.map ~f:(parse_compilation_units ~modules)
-  |> Action_builder.memoize (Path.to_string all_deps_file)
+
+  let md_l =
+    Action_builder.map
+      ~f:(fun x -> parse_compilation_units ~modules x)
+      (Action_builder.lines_of all_deps_file)
+  in
+  let odep_out = { source; deps = lines } in
+  ((Action_builder.memoize (Path.to_string all_deps_file)) md_l, odep_out)
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
   let all_deps_file = Obj_dir.Module.dep obj_dir (Transitive (unit, ml_kind)) in
-  Action_builder.lines_of (Path.build all_deps_file)
-  |> Action_builder.map ~f:(parse_compilation_units ~modules)
-  |> Action_builder.memoize (Path.Build.to_string all_deps_file)
+  let deps = Action_builder.lines_of (Path.build all_deps_file) in
+  let source = Option.value_exn (Module.source unit ~ml_kind) in
+
+  let modules_ab =
+    Action_builder.map ~f:(fun x -> parse_compilation_units ~modules x) deps
+  in
+  ( Action_builder.memoize (Path.Build.to_string all_deps_file) modules_ab
+  , { deps = Action_builder.return [ "read_deps_of~~~" ]; source } )
 
 let read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit =
   match Module.source ~ml_kind unit with

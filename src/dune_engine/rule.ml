@@ -59,7 +59,10 @@ module T = struct
     ; info : Info.t
     ; loc : Loc.t
     ; dir : Path.Build.t
+    ; odep_out : string list
     }
+
+  let with_odep_out a odep_out = { a with odep_out }
 
   let compare a b = Id.compare a.id b.id
 
@@ -113,7 +116,16 @@ let make ?(mode = Mode.Standard) ~context ?(info = Info.Internal) ~targets
            (Path.build (Path.Build.relative dir "_unknown_")))
     | Source_file_copy p -> Loc.in_file (Path.source p)
   in
-  { id = Id.gen (); targets; context; action; mode; info; loc; dir }
+  { id = Id.gen ()
+  ; targets
+  ; context
+  ; action
+  ; mode
+  ; info
+  ; loc
+  ; dir
+  ; odep_out = []
+  }
 
 let set_action t action =
   let action = Action_builder.memoize "Rule.set_action" action in

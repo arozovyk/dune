@@ -122,6 +122,10 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   (let open Option.O in
   let* compiler = compiler in
   let ml_kind = Lib_mode.Cm_kind.source cm_kind in
+  let dep_graph =
+    Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
+  in
+  let module_deps = Dep_graph.deps_of dep_graph m in
   let+ src = Module.file m ~ml_kind in
   let dst = Obj_dir.Module.cm_file_exn obj_dir m ~kind:cm_kind in
   let obj =
@@ -151,11 +155,10 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
         | (Ocaml Cmo | Melange Cmj), None, true
         | (Ocaml (Cmo | Cmx) | Melange Cmj), _, _ ->
           let cmi_kind = Lib_mode.Cm_kind.cmi cm_kind in
-          Memo.return
-            ( force_read_cmi src
-            , [ Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind)
-              ]
-            , [] )
+          let path_extradeps =
+            Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind)
+          in
+          Memo.return (force_read_cmi src, [ path_extradeps ], [])
         | (Ocaml Cmi | Melange Cmi), _, _ ->
           let+ () = copy_interface ~dir ~obj_dir ~sctx ~cm_kind m in
           ([], [], []))
@@ -176,12 +179,8 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   in
   let opaque = CC.opaque cctx in
   let other_cm_files =
-    let dep_graph =
-      Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
-    in
-    let module_deps = Dep_graph.deps_of dep_graph m in
     Action_builder.dyn_paths_unit
-      (Action_builder.map module_deps
+      (Action_builder.map (fst module_deps)
          ~f:(other_cm_files ~opaque ~cm_kind ~obj_dir))
   in
   let other_targets, cmt_args =
@@ -247,7 +246,12 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
        if dune_version >= (3, 7) then dir else ctx.build_dir)
     ?loc:(CC.loc cctx)
     (let open Action_builder.With_targets.O in
-    Action_builder.with_no_targets (Action_builder.paths extra_deps)
+    Action_builder.with_no_targets
+      (Action_builder.bind
+         (Action_builder.map2 (fst module_deps) (snd module_deps).deps
+            ~f:(fun a b -> (a, b)))
+         ~f:(fun (_mlist, odep_out) ->
+           Action_builder.paths ~odep_out extra_deps))
     >>> Action_builder.with_no_targets other_cm_files
     >>> Command.run ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags

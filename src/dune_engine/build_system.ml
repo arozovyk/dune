@@ -238,11 +238,11 @@ module type Rec = sig
       expansion. *)
   val build_alias : Alias.t -> Dep.Fact.Files.t Memo.t
 
-  val build_file : Path.t -> Digest.t Memo.t
+  val build_file : ?odep_out:string list -> Path.t -> Digest.t Memo.t
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
-  val build_deps : Dep.Set.t -> Dep.Facts.t Memo.t
+  val build_deps : ?odep_out:string list -> Dep.Set.t -> Dep.Facts.t Memo.t
 
   val eval_deps :
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
@@ -279,7 +279,10 @@ and Exported : sig
   (* The below two definitions are useless, but if we remove them we get an
      "Undefined_recursive_module" exception. *)
 
-  val build_file_memo : (Path.t, Digest.t * target_kind) Memo.Table.t
+  val build_file_memo :
+       ?odep_out:string list
+    -> unit
+    -> (Path.t, Digest.t * target_kind) Memo.Table.t
     [@@warning "-32"]
 
   val build_alias_memo : (Alias.t, Dep.Fact.Files.t) Memo.Table.t
@@ -292,13 +295,14 @@ end = struct
 
   (* [build_dep] turns a [Dep.t] which is a description of a dependency into a
      fact about the world. To do that, it needs to do some building. *)
-  let build_dep : Dep.t -> Dep.Fact.t Memo.t = function
+  let build_dep : ?odep_out:string list -> Dep.t -> Dep.Fact.t Memo.t =
+   fun ?(odep_out = []) -> function
     | Alias a ->
       let+ digests = build_alias a in
       (* Fact: alias [a] expands to the set of file-digest pairs [digests] *)
       Dep.Fact.alias a digests
     | File f ->
-      let+ digest = build_file f in
+      let+ digest = build_file ~odep_out f in
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
@@ -311,8 +315,11 @@ end = struct
          [Dep.Facts.digest]. *)
       Memo.return Dep.Fact.nothing
 
-  let build_deps deps =
-    Dep.Map.parallel_map deps ~f:(fun dep () -> build_dep dep)
+  let build_deps ?(odep_out = []) deps =
+    let _ = odep_out in
+    Dep.Map.parallel_map deps ~f:(fun dep () ->
+        let b_dep = build_dep ~odep_out dep in
+        b_dep)
 
   let eval_deps :
       type a. a Action_builder.eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
@@ -372,7 +379,7 @@ end = struct
       ( rule_digest_version (* Update when changing the rule digest scheme. *)
       , sandbox_mode
       , Dep.Facts.digest deps ~env
-      , file_targets @ dir_targets
+      , file_targets @ dir_targets @ rule.odep_out
       , Option.map rule.context ~f:(fun c -> Context_name.to_string c.name)
       , Action.for_shell action
       , can_go_in_shared_cache
@@ -513,10 +520,62 @@ end = struct
     | Promote promote, (Some Automatically | None) ->
       Target_promotion.promote ~dir ~targets ~promote ~promote_source
 
+  let _debug_dep_facts deps from =
+    let open Dep in
+    let vals = Map.to_list deps in
+    (*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
+           *)
+    (*  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in *)
+    let deplist =
+      List.mapi
+        ~f:(fun i (dep, dep_fact) ->
+          let dep_s =
+            match dep with
+            | Env s -> "Env" ^ s
+            | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
+            | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
+            | File_selector (* of File_selector.t *) d ->
+              "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
+            | Universe -> "Universe"
+          in
+          Dep.Fact.to_dyn dep_fact |> Dyn.to_string
+          |> Format.sprintf "Dep #%d \n -- fact : %s \n -- dyn %s\n " i dep_s)
+        vals
+      |> List.fold_left ~f:(fun x y -> x ^ y ^ "\n") ~init:""
+    in
+    Dune_util.Log.info
+      [ Pp.textf "List of Deps of size %d from %s: \n %s \n ---- \n"
+          (List.length vals) from deplist
+      ]
+
   let execute_rule_impl ~rule_kind rule =
-    let { Rule.id = _; targets; dir; context; mode; action; info = _; loc } =
+    let { Rule.id = _
+        ; targets
+        ; dir
+        ; context
+        ; mode
+        ; action
+        ; info = _
+        ; loc
+        ; odep_out
+        } =
       rule
     in
+
+    (*     Dune_util.Log.info [ Pp.textf "Execute rule impl" ];
+ *)
+    (* Dune_util.Log.info
+       [ Pp.textf "Dir : %s sizee %d Vals :%s ~~~~~END"
+           (Path.Build.to_string dir) (List.length odep_out)
+           (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ "\n") odep_out)
+       ]; *)
+
+    (* Dune_util.Log.info
+       [ Pp.textf "Execting rule for : %s and odep size is : %d"
+           (Targets.Validated.to_dyn targets |> Dyn.to_string)
+           (List.length odep_out)
+       ]; *)
+
     (* We run [State.start_rule_exn ()] entirely for its side effect, so one
        might be tempted to use [Memo.of_non_reproducible_fiber] here but that is
        wrong, because that would force us to rerun [execute_rule_impl] on every
@@ -530,6 +589,7 @@ end = struct
         (Build_config.get ()).execution_parameters ~dir
       | _ -> Execution_parameters.default
     in
+
     (* Note: we do not run the below in parallel with the above: if we fail to
        compute action execution parameters, we have no use for the action and
        might as well fail early, skipping unnecessary dependencies. The
@@ -537,6 +597,41 @@ end = struct
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
     let* action, deps = Action_builder.run action Eager in
+    let app = if List.length odep_out == 1 then List.hd odep_out else "None" in
+    let dd = String.split ~on:':' app in
+    let right =
+      if List.length dd == 2 then List.nth dd 1 |> Option.value_exn else "None"
+    in
+    let _ocamldep_deps = String.split ~on:' ' right in
+
+    let found_key =
+      Dep.Map.find_key deps ~f:(fun key ->
+          match key with
+          | File_selector _ -> true
+          | _ -> false)
+    in
+
+    let _deps =
+      match found_key with
+      | None -> deps
+      | Some dep ->
+        if
+          Targets.Validated.head targets
+          |> Path.Build.to_string
+          = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_a.cmi"
+        then Dep.Map.remove deps dep
+        else deps
+    in
+
+   (*  _debug_dep_facts deps
+      (* ("target123 : " ^ "from2 ~ " ^ from *)
+      ("odep:--~~->" ^ app ^ "\n"
+      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
+    (* Dune_util.Log.info
+       [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
+           (List.length odep_out)
+           (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
+       ]; *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()
@@ -598,6 +693,14 @@ end = struct
           compute_rule_digest rule ~deps ~action ~sandbox_mode
             ~execution_parameters
         in
+        if
+          Targets.Validated.head targets
+          |> Path.Build.to_string
+          = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_a.cmi"
+        then
+          Dune_util.Log.info
+            [ Pp.textf "Rule digest %s" (Digest.to_string rule_digest) ]
+        else ();
         (* CR-someday amokhov: Add support for rules with directory targets. *)
         let can_go_in_shared_cache =
           action.can_go_in_shared_cache
@@ -859,16 +962,31 @@ end = struct
 
   (* A rule can have multiple targets but calls to [execute_rule] are memoized,
      so the rule will be executed only once. *)
-  let build_file_impl path =
+  let build_file_impl ?(odep_out = []) path =
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
-    | Rule (path, rule) -> (
+    | Rule (path, rule') -> (
+      (*  *)
+      (* Dune_util.Log.info
+         [ Pp.textf "123Execting rule for : %s and odep size is : %d"
+             (Targets.Validated.to_dyn rule'.targets |> Dyn.to_string)
+             (List.length odep_out)
+         ]; *)
+      let rule = Rule.with_odep_out rule' odep_out in
       let+ { deps = _; targets } =
         Memo.push_stack_frame
           (fun () -> execute_rule rule)
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
+      (* Dune_util.Log.info
+           [ Pp.textf "123Execting rule for : %s and odep size is : %d"
+               (Targets.Validated.to_dyn rule'.targets |> Dyn.to_string)
+               (List.length odep_out)
+           ];
+         _debug_dep_facts deps
+           (Printf.sprintf "build_file_impl for file %s"
+              (Path.Build.to_string path)); *)
       match Path.Build.Map.find targets path with
       | Some digest -> (digest, File_target)
       | None -> (
@@ -1023,14 +1141,22 @@ end = struct
            ~cutoff:Dep.Fact.Files.equal build_impl)
   end
 
-  let build_file_memo =
+  let build_file_memo ?(odep_out = []) () =
     let cutoff = Tuple.T2.equal Digest.equal target_kind_equal in
-    Memo.create "build-file" ~input:(module Path) ~cutoff build_file_impl
+    Memo.create "build-file"
+      ~input:(module Path)
+      ~cutoff
+      (build_file_impl ~odep_out)
 
-  let build_file path = Memo.exec build_file_memo path >>| fst
+  let build_file ?(odep_out = []) path =
+    (* Dune_util.Log.info
+       [ Pp.textf "Build file path %s from %s \n" (Dpath.describe_path path) from
+       ];
+    *)
+    Memo.exec (build_file_memo ~odep_out ()) path >>| fst
 
   let build_dir path =
-    let+ digest, kind = Memo.exec build_file_memo path in
+    let+ digest, kind = Memo.exec (build_file_memo ()) path in
     match kind with
     | Dir_target { generated_file_digests } -> (digest, generated_file_digests)
     | File_target ->

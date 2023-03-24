@@ -214,10 +214,11 @@ let module_deps (m : Module.t) ~obj_dir ~(dep_graphs : Dep_graph.Ml_kind.t) =
   Action_builder.dyn_paths_unit
     (let open Action_builder.O in
     let+ deps =
-      if Module.has m ~ml_kind:Intf then Dep_graph.deps_of dep_graphs.intf m
+      if Module.has m ~ml_kind:Intf then
+        Dep_graph.deps_of dep_graphs.intf m |> fst
       else
         (* When a module has no .mli, use the dependencies for the .ml *)
-        Dep_graph.deps_of dep_graphs.impl m
+        Dep_graph.deps_of dep_graphs.impl m |> fst
     in
     List.map deps ~f:(fun m -> Path.build (Obj_dir.Module.odoc obj_dir m)))
 

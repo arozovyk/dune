@@ -17,20 +17,29 @@ module Modules_data : sig
     ; stdlib : Ocaml_stdlib.t option
     ; sandbox : Sandbox_config.t
     }
+
+  type odep_out =
+    { deps : string list Action_builder.t
+    ; source : Module.File.t
+    }
 end
+
+val odep_dummy : Module.File.t -> string -> Modules_data.odep_out
+
+val parse_deps_exn : file:Path.t -> string list -> string list
 
 val deps_of :
      Modules_data.t
   -> ml_kind:Ml_kind.t
   -> Module.t
-  -> Module.t list Action_builder.t Memo.t
+  -> (Module.t list Action_builder.t * Modules_data.odep_out) Memo.t
 
 val read_deps_of :
      obj_dir:Path.Build.t Obj_dir.t
   -> modules:Modules.t
   -> ml_kind:Ml_kind.t
   -> Module.t
-  -> Module.t list Action_builder.t
+  -> Module.t list Action_builder.t * Modules_data.odep_out
 
 (** [read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit] returns the
     immediate dependencies found in the modules of [modules] for the file with
