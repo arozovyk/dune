@@ -81,7 +81,7 @@ val dep : Dep.t -> unit t
 
 val deps : ?odep_out:string list -> ?from:string -> Dep.Set.t -> unit t
 
-val dyn_deps : ?from:string -> ('a * Dep.Set.t) t -> 'a t
+val dyn_deps : ?odep_out:string list -> ?from:string -> ('a * Dep.Set.t) t -> 'a t
 
 val paths : ?odep_out:string list -> ?from:string -> Path.t list -> unit t
 
@@ -120,7 +120,7 @@ val dyn_memo_deps :
 (** Record dynamic dependencies *)
 val dyn_paths : ('a * Path.t list) t -> 'a t
 
-val dyn_paths_unit : ?from:string -> Path.t list t -> unit t
+val dyn_paths_unit : ?odep_out:string list -> ?from:string -> Path.t list t -> unit t
 
 val dyn_path_set : ('a * Path.Set.t) t -> 'a t
 

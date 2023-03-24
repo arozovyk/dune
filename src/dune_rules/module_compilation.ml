@@ -128,6 +128,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) ml_kind
   in
   let module_deps = Dep_graph.deps_of dep_graph m in
+
   (*   let ocaml_module_data = CC.ocamldep_modules_data cctx in
  *)
   (*   let+ graph = Dep_rules.rules ocaml_module_data in *)
@@ -282,15 +283,18 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
        if dune_version >= (3, 7) then dir else ctx.build_dir)
     ?loc:(CC.loc cctx)
     (let open Action_builder.With_targets.O in
+    let cmb =
+      Action_builder.map2 (fst module_deps) (snd module_deps).deps
+        ~f:(fun a b -> (a, b))
+    in
     Action_builder.with_no_targets
-      (Action_builder.bind (fst module_deps) ~f:(fun mlist ->
+      (Action_builder.bind cmb ~f:(fun (_mlist, odep_out) ->
            (* Dune_util.Log.info
-              [ Pp.textf " compiling module %s "
-                  (Module.name m |> Module_name.to_string)
-              ]; *)
-           let odep_out =
-             List.map ~f:(fun m -> Module.to_dyn m |> Dyn.to_string) mlist
-           in
+             [ Pp.textf " compiling module %s odep l %d  \n %s"
+                 (Module.name m |> Module_name.to_string)
+                 (List.length odep_out)
+                 (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ "\n") odep_out)
+             ]; *)
 
            (* let odep_out =
                 Printf.sprintf "---Deps of module name: %s path :%s:\n"

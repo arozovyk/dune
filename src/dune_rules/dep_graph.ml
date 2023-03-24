@@ -39,14 +39,14 @@ let top_closed t (modules : Module.t list) =
 
         let r2 = odep.deps in
         let r3 =
-          Action_builder.map2 r r2 ~f:(fun x y ->
+          Action_builder.map2 r r2 ~f:(fun x _y ->
               let dummies = List.init (List.length x) ~f:(fun _ -> " ") in
-              Dune_util.Log.info
+              (* Dune_util.Log.info
                 [ Pp.textf "Odep length for module %s %d \n %s \n"
                     (Module.name m |> Module_name.to_string)
                     (List.length y)
                     (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") y ~init:"")
-                ];
+                ]; *)
               let lscmb = List.combine x dummies in
               lscmb)
         in

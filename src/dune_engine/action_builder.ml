@@ -48,14 +48,15 @@ let deps ?(odep_out = []) ?(from = "unknown") d =
 
 let dep d = deps ~from:"dep 32" (Dep.Set.singleton d)
 
-let dyn_deps ?(from = "unknown") t =
+let dyn_deps ?(odep_out = []) ?(from = "unknown") t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
           let+ deps =
-            register_action_deps ~from:(from ^ "-->dyn_deps 57") mode deps
+            register_action_deps ~odep_out ~from:(from ^ "-->dyn_deps 57") mode
+              deps
           in
           (x, Deps_or_facts.union mode deps deps_x))
     }
@@ -91,8 +92,8 @@ let dyn_paths paths =
   dyn_deps ~from:" dyn_paths 89 "
     (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
 
-let dyn_paths_unit ?(from = "unknown") paths =
-  dyn_deps
+let dyn_paths_unit ?(odep_out = []) ?(from = "unknown") paths =
+  dyn_deps ~odep_out
     ~from:(from ^ " dyn_paths_unit 92  ")
     (paths >>| fun paths -> ((), Dep.Set.of_files paths))
 

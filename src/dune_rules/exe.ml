@@ -134,12 +134,14 @@ let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
 let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
     ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx =
   let sctx = CC.super_context cctx in
+
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
   let mode = Link_mode.mode linkage.mode in
   let exe = exe_path_from_name cctx ~name ~linkage in
   let top_sorted_cms = Cm_files.top_sorted_cms cm_files ~mode in
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
+
   let open Memo.O in
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
@@ -235,7 +237,7 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
   let+ for_exes =
     Memo.parallel_map programs
       ~f:(fun { Program.name; main_module_name; loc } ->
-        let top_sorted_modules  =
+        let top_sorted_modules =
           let main =
             match Modules.find modules main_module_name with
             | Some m -> m

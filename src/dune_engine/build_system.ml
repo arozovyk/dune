@@ -310,9 +310,10 @@ end = struct
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
-(*       let path = File_selector.dir g in
- *)     (*  Dune_util.Log.info
-        [ Pp.textf "File selector123 path %s" (Dpath.describe_path path) ]; *)
+      (*       let path = File_selector.dir g in
+ *)
+      (* Dune_util.Log.info
+         [ Pp.textf "File selector123 path %s" (Dpath.describe_path path) ]; *)
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
@@ -326,7 +327,9 @@ end = struct
     let _ = odep_out in
 
     Dep.Map.parallel_map deps ~f:(fun dep () ->
-        let b_dep = build_dep ~odep_out ~from:(from ^ "->>build_deps 316->>") dep in
+        let b_dep =
+          build_dep ~odep_out ~from:(from ^ "->>build_deps 316->>") dep
+        in
 
         b_dep)
 
@@ -568,8 +571,8 @@ end = struct
         ; action
         ; info = _
         ; loc
-        ; odep_out =_
-        ; from =_
+        ; odep_out
+        ; from = _
         } =
       rule
     in
@@ -577,10 +580,11 @@ end = struct
     (*     Dune_util.Log.info [ Pp.textf "Execute rule impl" ];
  *)
     (* Dune_util.Log.info
-       [ Pp.textf "Dir : %s sizee %d Vals :%s " (Path.Build.to_string dir)
-           (List.length odep_out)
+       [ Pp.textf "Dir : %s sizee %d Vals :%s ~~~~~END"
+           (Path.Build.to_string dir) (List.length odep_out)
            (List.fold_left ~init:"" ~f:(fun x y -> x ^ y ^ "\n") odep_out)
        ]; *)
+
     (* Dune_util.Log.info
        [ Pp.textf "Execting rule for : %s and odep size is : %d"
            (Targets.Validated.to_dyn targets |> Dyn.to_string)
@@ -600,23 +604,69 @@ end = struct
         (Build_config.get ()).execution_parameters ~dir
       | _ -> Execution_parameters.default
     in
+
     (* Note: we do not run the below in parallel with the above: if we fail to
        compute action execution parameters, we have no use for the action and
        might as well fail early, skipping unnecessary dependencies. The
        function [(Build_config.get ()).execution_parameters] is likely
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
-
     let* action, deps = Action_builder.run action Eager in
-    
-   (*  _debug_dep_facts deps
-      ("target123 : " ^ "from2 ~ " ^ from
-      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
-    Dune_util.Log.info
-      [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
-          (List.length odep_out)
-          (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
-      ]; *)
+    let app = if List.length odep_out == 1 then List.hd odep_out else "None" in
+    let dd = String.split ~on:':' app in
+    let right =
+      if List.length dd == 2 then List.nth dd 1 |> Option.value_exn else "None"
+    in
+    let _ocamldep_deps = String.split ~on:' ' right in
+
+    (* Dune_util.Log.info
+       [ Pp.textf "~~~~||right%s"
+           (List.fold_left ~f:(fun x y -> x ^ y ^ "  \n ") dd ~init:"")
+       ]; *)
+    let found_key =
+      Dep.Map.find_key deps ~f:(fun key ->
+          match key with
+          | File_selector _ -> true
+          | _ -> false)
+    in
+
+    (* (if
+         Targets.Validated.to_dyn targets
+         |> Path.Build.to_string
+         = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_b.cmi"
+       then ( )
+       else () );
+    *)
+    let deps =
+      match found_key with
+      | None -> deps
+      | Some dep ->
+        (* let dep_s =
+             match dep with
+             | Env s -> "Env" ^ s
+             | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
+             | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
+             | File_selector (* of File_selector.t *) d ->
+               "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
+             | Universe -> "Universe"
+           in *)
+        if
+          Targets.Validated.head targets
+          |> Path.Build.to_string
+          = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_a.cmi"
+        then Dep.Map.remove deps dep
+        else deps
+    in
+
+    (* _debug_dep_facts deps
+      (* ("target123 : " ^ "from2 ~ " ^ from *)
+      ("odep:--~~->" ^ app ^ "\n"
+      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
+    (* Dune_util.Log.info
+       [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
+           (List.length odep_out)
+           (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
+       ]; *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()
@@ -678,6 +728,14 @@ end = struct
           compute_rule_digest rule ~deps ~action ~sandbox_mode
             ~execution_parameters
         in
+        if
+          Targets.Validated.head targets
+          |> Path.Build.to_string
+          = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_a.cmi"
+        then
+          Dune_util.Log.info
+            [ Pp.textf "Rule digest %s" (Digest.to_string rule_digest) ]
+        else ();
         (* CR-someday amokhov: Add support for rules with directory targets. *)
         let can_go_in_shared_cache =
           action.can_go_in_shared_cache
@@ -1133,11 +1191,15 @@ end = struct
        ];
     *)
     let _ = from in
-    Memo.exec (build_file_memo ~from:(from^"->build_file 1135") ~odep_out ()) path
+    Memo.exec
+      (build_file_memo ~from:(from ^ "->build_file 1135") ~odep_out ())
+      path
     >>| fst
 
   let build_dir path =
-    let+ digest, kind = Memo.exec (build_file_memo ~from:"build_dir 1139"  ()) path in
+    let+ digest, kind =
+      Memo.exec (build_file_memo ~from:"build_dir 1139" ()) path
+    in
     match kind with
     | Dir_target { generated_file_digests } -> (digest, generated_file_digests)
     | File_target ->
