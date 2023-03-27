@@ -63,6 +63,7 @@ type t = private
   ; info : Info.t
   ; loc : Loc.t
   ; dir : Path.Build.t  (** Directory where all the targets are produced. *)
+  ; external_deps : string list
   }
 
 include Comparable_intf.S with type key := t
@@ -84,6 +85,8 @@ val make :
   -> t
 
 val set_action : t -> Action.Full.t Action_builder.t -> t
+
+val set_external_deps : t -> string list -> t
 
 val loc : t -> Loc.t
 

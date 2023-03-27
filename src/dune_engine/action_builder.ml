@@ -7,23 +7,26 @@ open struct
 end
 
 let register_action_deps :
-    type a. a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
- fun mode deps ->
+    type a.
+    ?external_deps:string list -> a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t
+    =
+ fun ?(external_deps = []) mode deps ->
   match mode with
-  | Eager -> Build_system.build_deps deps
+  | Eager -> Build_system.build_deps ~external_deps deps
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps deps =
+let dyn_memo_deps ?(external_deps = []) deps =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
-          let+ deps = register_action_deps mode deps in
+          let+ deps = register_action_deps ~external_deps mode deps in
           (paths, deps))
     }
 
-let deps d = dyn_memo_deps (Memo.return (d, ()))
+let deps ?(external_deps = []) d =
+  dyn_memo_deps ~external_deps (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
@@ -39,7 +42,9 @@ let dyn_deps t =
 
 let path p = deps (Dep.Set.singleton (Dep.file p))
 
-let paths ps = deps (Dep.Set.of_files ps)
+let paths ?(external_deps = []) ps =
+  let _ = external_deps in
+  deps ~external_deps (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 
