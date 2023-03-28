@@ -132,7 +132,7 @@ let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
   Path.Build.relative (CC.dir cctx) (name ^ linkage.ext)
 
 let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
-    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx =
+    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx unit =
   let sctx = CC.super_context cctx in
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
@@ -140,12 +140,28 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let exe = exe_path_from_name cctx ~name ~linkage in
   let top_sorted_cms = Cm_files.top_sorted_cms cm_files ~mode in
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
+  let dep_graph = Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) Impl in
+  let module_deps = Dep_graph.deps_of dep_graph unit in
+
   let open Memo.O in
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
     let prefix =
-      Cm_files.top_sorted_objects_and_cms cm_files ~mode
-      |> Action_builder.dyn_paths_unit
+      Action_builder.bind module_deps ~f:(fun md ->
+          let external_deps =
+            List.filter_map ~f:Module_dep.filter_external md
+            |> List.map ~f:Module_dep.External_name.to_string
+          in
+
+         (*  Dune_util.Log.info
+            [ Pp.textf "exe: external deps for %s\n%s"
+                (Module.name unit |> Module_name.to_string)
+                (List.fold_left ~init:""
+                   ~f:(fun a b -> a ^ b ^ "\n")
+                   external_deps)
+            ]; *)
+          Action_builder.dyn_paths_unit ~external_deps
+            (Cm_files.top_sorted_objects_and_cms cm_files ~mode))
     in
     let+ fdo_linker_script_flags = Fdo.Linker_script.flags fdo_linker_script in
     let open Action_builder.With_targets.O in
@@ -235,16 +251,16 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
   let+ for_exes =
     Memo.parallel_map programs
       ~f:(fun { Program.name; main_module_name; loc } ->
+        let main =
+          match Modules.find modules main_module_name with
+          | Some m -> m
+          | None ->
+            Code_error.raise "link_many: unable to find module"
+              [ ("main_module_name", Module_name.to_dyn main_module_name)
+              ; ("modules", Modules.to_dyn modules)
+              ]
+        in
         let top_sorted_modules =
-          let main =
-            match Modules.find modules main_module_name with
-            | Some m -> m
-            | None ->
-              Code_error.raise "link_many: unable to find module"
-                [ ("main_module_name", Module_name.to_dyn main_module_name)
-                ; ("modules", Modules.to_dyn modules)
-                ]
-          in
           Dep_graph.top_closed_implementations (CC.dep_graphs cctx).impl
             [ main ]
         in
@@ -280,8 +296,8 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
                   | Byte | Byte_for_jsoo | Byte_with_stubs_statically_linked_in
                     -> (link_args, select_o_files Mode.Byte)
                 in
-                link_exe cctx ~loc ~name ~linkage ~cm_files ~link_time_code_gen
-                  ~promote ~link_args ~o_files ?sandbox)
+                link_exe cctx main ~loc ~name ~linkage ~cm_files
+                  ~link_time_code_gen ~promote ~link_args ~o_files ?sandbox)
         in
         top_sorted_modules)
   in

@@ -579,38 +579,43 @@ end = struct
        sacrifice too much performance here by executing it sequentially. *)
     let* action, deps = Action_builder.run action Eager in
 
-    let deps =
-      Dep.Map.filteri deps ~f:(fun a _ ->
-          match a with
-          | Dep.File_selector fs
-            when not
-                   (List.exists
-                      ~f:(fun external_dep ->
-                        String.equal (File_selector.name fs) external_dep)
-                      external_deps) ->
-            Dune_util.Log.info
-              [ Pp.textf "False for %s "
-                  (Targets.Validated.head targets |> Path.Build.to_string)
-              ];
-            false
-          | _ -> true)
-    in
+    (* let deps =
+         Dep.Map.filteri deps ~f:(fun a _ ->
+             match a with
+             | Dep.File_selector fs
+               when not
+                      (List.exists
+                         ~f:(fun external_dep ->
+                           String.equal (File_selector.name fs) external_dep)
+                         external_deps) ->
+               Dune_util.Log.info
+                 [ Pp.textf "Removing file selector of  %s "
+                     (Targets.Validated.head targets |> Path.Build.to_string)
+                 ];
+               false
+             | _ -> true)
+       in *)
     if
       Targets.Validated.head targets
       |> Path.Build.to_string
-      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
+      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
     then
       Dune_util.Log.info
         [ Pp.textf "extgernal deps %s"
             (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
         ]
     else ();
-
-    _debug_dep_facts deps
-      (* ("target123 : " ^ "from2 ~ " ^ from *)
-      ("odep:--~~->" ^ "\n"
-      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
-
+    Dune_util.Log.info
+      [ Pp.textf "extgernal deps %s for %s "
+          (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
+          (Targets.Validated.to_dyn targets |> Dyn.to_string)
+      ];
+    (* _debug_dep_facts deps
+       (* ("target123 : " ^ "from2 ~ " ^ from *)
+       ("odep:--~~->"
+       ^ ((List.length external_deps |> Int.to_string) ^ "\n")
+       ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
+    *)
     (* Dune_util.Log.info
        [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
            (List.length odep_out)

@@ -30,13 +30,13 @@ let deps ?(external_deps = []) d =
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps t =
+let dyn_deps ?(external_deps = []) t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
-          let+ deps = register_action_deps mode deps in
+          let+ deps = register_action_deps ~external_deps mode deps in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
@@ -71,8 +71,8 @@ let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 let dyn_paths paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
 
-let dyn_paths_unit paths =
-  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+let dyn_paths_unit ?(external_deps = []) paths =
+  dyn_deps ~external_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
 
 let dyn_path_set paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))
