@@ -50,8 +50,18 @@ end
 open Args0
 
 let rec expand :
-    type a. dir:Path.t -> a t -> string list Action_builder.With_targets.t =
- fun ~dir t ->
+    type a.
+       ?deps:string list Action_builder.t
+    -> ?from:string
+    -> dir:Path.t
+    -> a t
+    -> string list Action_builder.With_targets.t =
+ fun ?deps ?(from = "unknown321") ~dir t ->
+  let deps =
+    match deps with
+    | Some s -> s
+    | None -> Action_builder.return [ "" ]
+  in
   match t with
   | A s -> Action_builder.With_targets.return [ s ]
   | As l -> Action_builder.With_targets.return l
@@ -62,23 +72,29 @@ let rec expand :
   | Path fn -> Action_builder.With_targets.return [ Path.reach fn ~from:dir ]
   | Deps fns ->
     Action_builder.with_no_targets
-      (Action_builder.map (Action_builder.paths fns) ~f:(fun () ->
-           List.map fns ~f:(Path.reach ~from:dir)))
+      (Action_builder.map
+         (Action_builder.bind deps ~f:(fun external_deps ->
+              Action_builder.paths ~external_deps ~from:(from ^ "->expand") fns))
+         ~f:(fun () -> List.map fns ~f:(Path.reach ~from:dir)))
   | Paths fns ->
     Action_builder.With_targets.return (List.map fns ~f:(Path.reach ~from:dir))
   | S ts ->
     Action_builder.With_targets.map
-      (Action_builder.With_targets.all (List.map ts ~f:(expand ~dir)))
+      (Action_builder.With_targets.all
+         (List.map ts
+            ~f:(expand ~deps ~from:(from ^ "->rec_call_expand3") ~dir)))
       ~f:List.concat
   | Concat (sep, ts) ->
-    Action_builder.With_targets.map (expand ~dir (S ts)) ~f:(fun x ->
-        [ String.concat ~sep x ])
+    Action_builder.With_targets.map
+      (expand ~deps ~from:(from ^ "->rec_call_expand2") ~dir (S ts))
+      ~f:(fun x -> [ String.concat ~sep x ])
   | Target fn ->
     Action_builder.with_file_targets ~file_targets:[ fn ]
       (Action_builder.return [ Path.reach (Path.build fn) ~from:dir ])
   | Dyn dyn ->
     Action_builder.with_no_targets
-      (Action_builder.bind dyn ~f:(fun t -> expand_no_targets ~dir t))
+      (Action_builder.bind dyn ~f:(fun t ->
+           expand_no_targets ~deps ~from:(from ^ "->rec_call_expand") ~dir t))
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
     Action_builder.with_no_targets
@@ -88,8 +104,16 @@ let rec expand :
       (Action_builder.return [])
   | Expand f -> Action_builder.with_no_targets (f ~dir)
 
-and expand_no_targets ~dir (t : without_targets t) =
-  let { Action_builder.With_targets.build; targets } = expand ~dir t in
+and expand_no_targets ?deps ?(from = "unknown123") ~dir (t : without_targets t)
+    =
+  let { Action_builder.With_targets.build; targets } =
+    let deps =
+      match deps with
+      | Some s -> s
+      | None -> Action_builder.return [ "" ]
+    in
+    expand ~deps ~from:(from ^ "expand_no_targets") ~dir t
+  in
   assert (Targets.is_empty targets);
   build
 
@@ -97,11 +121,12 @@ let dep_prog = function
   | Ok p -> Action_builder.path p
   | Error _ -> Action_builder.return ()
 
-let run ~dir ?sandbox ?stdout_to prog args =
+let run ?(deps = Action_builder.return [ "" ]) ?(from = "unknown") ~dir ?sandbox
+    ?stdout_to prog args =
   Action_builder.With_targets.add ~file_targets:(Option.to_list stdout_to)
     (let open Action_builder.With_targets.O in
     let+ () = Action_builder.with_no_targets (dep_prog prog)
-    and+ args = expand ~dir (S args) in
+    and+ args = expand ~deps ~from:(from ^ "->run") ~dir (S args) in
     let action = Action.run prog args in
     let action =
       match stdout_to with
@@ -113,7 +138,7 @@ let run ~dir ?sandbox ?stdout_to prog args =
 let run' ~dir prog args =
   let open Action_builder.O in
   let+ () = dep_prog prog
-  and+ args = expand_no_targets ~dir (S args) in
+  and+ args = expand_no_targets ~from:"run'" ~dir (S args) in
   Action.Full.make (Action.chdir dir (Action.run prog args))
 
 let quote_args =
@@ -132,7 +157,7 @@ module Args = struct
     let memo =
       Action_builder.create_memo "Command.Args.memo"
         ~input:(module Path)
-        (fun dir -> expand_no_targets ~dir t)
+        (fun dir -> expand_no_targets ~from:"memo" ~dir t)
     in
     Expand (fun ~dir -> Action_builder.exec_memo memo dir)
 end

@@ -253,7 +253,7 @@ let build_c_program ~foreign_archives_deps ~sctx ~dir ~source_files ~scope
         let action =
           let open Action_builder.O in
           let* flag_args =
-            Command.expand_no_targets ~dir:(Path.build dir) all_flags
+            Command.expand_no_targets ~from:"build_c_prog" ~dir:(Path.build dir) all_flags
           in
           let+ () = deps in
           let source_files = List.map source_files ~f:absolute_path_hack in

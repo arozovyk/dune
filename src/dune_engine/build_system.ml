@@ -238,11 +238,12 @@ module type Rec = sig
       expansion. *)
   val build_alias : Alias.t -> Dep.Fact.Files.t Memo.t
 
-  val build_file : ?external_deps:string list -> Path.t -> Digest.t Memo.t
+  val build_file :
+    ?from:string -> ?external_deps:string list -> Path.t -> Digest.t Memo.t
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
-  val build_deps : ?external_deps:string list -> Dep.Set.t -> Dep.Facts.t Memo.t
+  val build_deps : ?from:string-> ?external_deps:string list -> Dep.Set.t -> Dep.Facts.t Memo.t
 
   val eval_deps :
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
@@ -295,14 +296,15 @@ end = struct
 
   (* [build_dep] turns a [Dep.t] which is a description of a dependency into a
      fact about the world. To do that, it needs to do some building. *)
-  let build_dep : ?external_deps:string list -> Dep.t -> Dep.Fact.t Memo.t =
-   fun ?(external_deps = []) -> function
+  let build_dep :
+      ?from:string -> ?external_deps:string list -> Dep.t -> Dep.Fact.t Memo.t =
+   fun ?(from = "unknown") ?(external_deps = []) -> function
     | Alias a ->
       let+ digests = build_alias a in
       (* Fact: alias [a] expands to the set of file-digest pairs [digests] *)
       Dep.Fact.alias a digests
     | File f ->
-      let+ digest = build_file ~external_deps f in
+      let+ digest = build_file ~from:(from ^ "->build_dep") ~external_deps f in
       (* Fact: file [f] has digest [digest] *)
       Dep.Fact.file f digest
     | File_selector g ->
@@ -315,8 +317,9 @@ end = struct
          [Dep.Facts.digest]. *)
       Memo.return Dep.Fact.nothing
 
-  let build_deps ?(external_deps = []) deps =
-    Dep.Map.parallel_map deps ~f:(fun dep () -> build_dep ~external_deps dep)
+  let build_deps ?(from = "unknown") ?(external_deps = []) deps =
+    Dep.Map.parallel_map deps ~f:(fun dep () ->
+        build_dep ~from:(from ^ "->build_deps") ~external_deps dep)
 
   let eval_deps :
       type a. a Action_builder.eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t =
@@ -601,15 +604,15 @@ end = struct
       = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
     then
       Dune_util.Log.info
-        [ Pp.textf "extgernal deps %s"
+        [ Pp.textf "extgernal deps Main_b %s"
             (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
         ]
     else ();
-    Dune_util.Log.info
-      [ Pp.textf "extgernal deps %s for %s "
-          (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
-          (Targets.Validated.to_dyn targets |> Dyn.to_string)
-      ];
+    (* Dune_util.Log.info
+       [ Pp.textf "extgernal deps %s for %s "
+           (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
+           (Targets.Validated.to_dyn targets |> Dyn.to_string)
+       ]; *)
     (* _debug_dep_facts deps
        (* ("target123 : " ^ "from2 ~ " ^ from *)
        ("odep:--~~->"
@@ -944,13 +947,31 @@ end = struct
   (* A rule can have multiple targets but calls to [execute_rule] are memoized,
      so the rule will be executed only once. *)
   let build_file_impl ?(external_deps = []) path =
+    if
+      String.equal (Dpath.describe_path path)
+        "bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
+    then
+      Dune_util.Log.info
+        [ Pp.textf "build_file_impl: external deps for %s\n%s"
+            (Dpath.describe_path path)
+            (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
+        ];
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
     | Rule (path, rule) -> (
       let rule = Rule.set_external_deps rule external_deps in
       let+ { deps = _; targets } =
         Memo.push_stack_frame
-          (fun () -> execute_rule rule)
+          (fun () ->
+            (* Dune_util.Log.info
+               [ Pp.textf
+                   "before executre fule  : external deps \n%s\n rule %s \n"
+                   (List.fold_left ~init:""
+                      ~f:(fun a b -> a ^ b ^ "\n")
+                      external_deps)
+                   (Rule.to_dyn rule |> Dyn.to_string)
+               ]; *)
+            execute_rule rule)
           ~human_readable_description:(fun () ->
             Pp.text (Path.to_string_maybe_quoted (Path.build path)))
       in
@@ -1115,7 +1136,17 @@ end = struct
       ~cutoff
       (build_file_impl ~external_deps)
 
-  let build_file ?(external_deps = []) path =
+  let build_file ?(from = "unknown") ?(external_deps = []) path =
+    if
+      String.equal (Dpath.describe_path path)
+        "bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
+    then
+      Dune_util.Log.info
+        [ Pp.textf "from(%s)123build_file: external deps for %s\n%s" from
+            (Dpath.describe_path path)
+            (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
+        ];
+
     Memo.exec (build_file_memo ~external_deps ()) path >>| fst
 
   let build_dir path =
@@ -1269,8 +1300,8 @@ let run_exn f =
   | Ok res -> res
   | Error `Already_reported -> raise Dune_util.Report_error.Already_reported
 
-let build_file p =
-  let+ (_ : Digest.t) = build_file p in
+let build_file ?(from = "unknown") p =
+  let+ (_ : Digest.t) = build_file ~from p in
   ()
 
 let read_file p ~f =

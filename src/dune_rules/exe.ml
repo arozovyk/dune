@@ -142,7 +142,9 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
   let dep_graph = Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) Impl in
   let module_deps = Dep_graph.deps_of dep_graph unit in
-
+  Dune_util.Log.info
+    [ Pp.textf "Link_exe for  %s\n " (Module.name unit |> Module_name.to_string)
+    ];
   let open Memo.O in
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
@@ -153,13 +155,18 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
             |> List.map ~f:Module_dep.External_name.to_string
           in
 
-         (*  Dune_util.Log.info
+          let external_deps =
+            ("bla" ^ (Module.name unit |> Module_name.to_string))
+            :: external_deps
+          in
+          Dune_util.Log.info
             [ Pp.textf "exe: external deps for %s\n%s"
                 (Module.name unit |> Module_name.to_string)
                 (List.fold_left ~init:""
                    ~f:(fun a b -> a ^ b ^ "\n")
                    external_deps)
-            ]; *)
+            ];
+
           Action_builder.dyn_paths_unit ~external_deps
             (Cm_files.top_sorted_objects_and_cms cm_files ~mode))
     in
@@ -185,8 +192,14 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
 
        In each case, we could then pass the argument in dependency order, which
        would provide a better fix for this issue. *)
+    let deps =
+        (Action_builder.map module_deps ~f:(fun d ->
+             List.filter_map ~f:Module_dep.filter_external d
+             |> List.map ~f:Module_dep.External_name.to_string))
+    in
+    let deps = deps in
     Action_builder.with_no_targets prefix
-    >>> Command.run ~dir:(Path.build ctx.build_dir)
+    >>> Command.run ~deps ~from:"link_exe" ~dir:(Path.build ctx.build_dir)
           (Context.compiler ctx mode)
           [ Command.Args.dyn ocaml_flags
           ; A "-o"
@@ -211,6 +224,7 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
           ]
     >>| Action.Full.add_sandbox sandbox
   in
+
   Super_context.add_rule sctx ~loc ~dir
     ~mode:
       (match promote with
@@ -228,7 +242,9 @@ let link_js ~name ~loc ~obj_dir ~top_sorted_modules ~link_args ~promote
     Action_builder.bind link_args ~f:(fun cmd ->
         let open Action_builder.O in
         let+ l =
-          Command.expand_no_targets ~dir:(Path.build (CC.dir cctx)) cmd
+          Command.expand_no_targets ~from:"linkjs"
+            ~dir:(Path.build (CC.dir cctx))
+            cmd
         in
         List.exists l ~f:(String.equal "-linkall"))
   in

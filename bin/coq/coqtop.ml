@@ -126,7 +126,7 @@ let term =
             let* args =
               let dir = Path.external_ Path.External.initial_cwd in
               let+ args = args in
-              Dune_rules.Command.expand ~dir (S args)
+              Dune_rules.Command.expand ~from:"term" ~dir (S args)
             in
             Action_builder.run args.build Eager
           in

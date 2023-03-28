@@ -4,7 +4,7 @@ open Import
 module Action_builder := Action_builder0
 
 (** Build a file. *)
-val build_file : Path.t -> unit Memo.t
+val build_file : ?from:string -> Path.t -> unit Memo.t
 
 (** Build a file and access its contents with [f]. *)
 val read_file : Path.t -> f:(Path.t -> 'a) -> 'a Memo.t
@@ -13,7 +13,8 @@ val read_file : Path.t -> f:(Path.t -> 'a) -> 'a Memo.t
 val file_exists : Path.t -> bool Memo.t
 
 (** Build a set of dependencies and return learned facts about them. *)
-val build_deps : ?external_deps:string list ->  Dep.Set.t -> Dep.Facts.t Memo.t
+val build_deps :
+  ?from:string -> ?external_deps:string list -> Dep.Set.t -> Dep.Facts.t Memo.t
 
 (** [eval_pred glob] returns the list of files in [File_selector.dir glob] that
     matches [File_selector.predicate glob]. The list of files includes the list

@@ -259,7 +259,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
              List.filter_map ~f:Module_dep.filter_external m
              |> List.map ~f:Module_dep.External_name.to_string
            in
-           Action_builder.paths ~external_deps extra_deps))
+           Action_builder.paths ~from:"build_cm" ~external_deps extra_deps))
     >>> Action_builder.with_no_targets other_cm_files
     >>> Command.run ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags

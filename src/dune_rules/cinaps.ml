@@ -104,7 +104,7 @@ let gen_rules sctx t ~dir ~scope =
       else Sandbox_config.default
     in
     Super_context.add_rule sctx ~loc:t.loc ~dir
-      (Command.run ~dir:(Path.build dir) prog ~sandbox
+      (Command.run ~from:"gen_rules" ~dir:(Path.build dir) prog ~sandbox
          [ A "-staged"
          ; Target cinaps_ml
          ; Deps (List.map cinapsed_files ~f:Path.build)

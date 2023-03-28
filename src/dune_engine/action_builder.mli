@@ -79,11 +79,11 @@ val path : Path.t -> unit t
 
 val dep : Dep.t -> unit t
 
-val deps : ?external_deps:string list -> Dep.Set.t -> unit t
+val deps : ?from:string -> ?external_deps:string list -> Dep.Set.t -> unit t
 
 val dyn_deps : ?external_deps:string list -> ('a * Dep.Set.t) t -> 'a t
 
-val paths : ?external_deps:string list -> Path.t list -> unit t
+val paths : ?from :string -> ?external_deps:string list -> Path.t list -> unit t
 
 val path_set : Path.Set.t -> unit t
 
@@ -115,7 +115,7 @@ val dep_on_alias_rec :
 (** [dyn_memo_deps m] adds the dependencies computed by [m] while returning the
     extra value. *)
 val dyn_memo_deps :
-  ?external_deps:string list -> (Dep.Set.t * 'a) Memo.t -> 'a t
+  ?from:string -> ?external_deps:string list -> (Dep.Set.t * 'a) Memo.t -> 'a t
 
 (** Record dynamic dependencies *)
 val dyn_paths : ('a * Path.t list) t -> 'a t

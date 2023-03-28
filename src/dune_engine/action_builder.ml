@@ -8,43 +8,59 @@ end
 
 let register_action_deps :
     type a.
-    ?external_deps:string list -> a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t
-    =
- fun ?(external_deps = []) mode deps ->
+       ?from:string
+    -> ?external_deps:string list
+    -> a eval_mode
+    -> Dep.Set.t
+    -> a Dep.Map.t Memo.t =
+ fun ?(from = "unknown") ?(external_deps = []) mode deps ->
   match mode with
-  | Eager -> Build_system.build_deps ~external_deps deps
+  | Eager ->
+    Build_system.build_deps
+      ~from:(from ^ "->>register_action_deps ")
+      ~external_deps deps
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps ?(external_deps = []) deps =
+let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* deps, paths = deps in
-          let+ deps = register_action_deps ~external_deps mode deps in
+          let+ deps =
+            register_action_deps ~from:(from ^ "->dyn_memo_deps") ~external_deps
+              mode deps
+          in
           (paths, deps))
     }
 
-let deps ?(external_deps = []) d =
-  dyn_memo_deps ~external_deps (Memo.return (d, ()))
+let deps ?(from = "unknown") ?(external_deps = []) d =
+  dyn_memo_deps ~from:(from ^ "->deps") ~external_deps (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps ?(external_deps = []) t =
+let dyn_deps ?((* ?(from = "unknown") *) external_deps = []) t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
-          let+ deps = register_action_deps ~external_deps mode deps in
+
+          let+ deps =
+            register_action_deps
+              ~from:
+                ("dyn_deps size"
+                ^ (List.length external_deps |> Int.to_string)
+                ^ "~>")
+              ~external_deps mode deps
+          in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
 let path p = deps (Dep.Set.singleton (Dep.file p))
 
-let paths ?(external_deps = []) ps =
-  let _ = external_deps in
-  deps ~external_deps (Dep.Set.of_files ps)
+let paths ?(from = "unkown") ?(external_deps = []) ps =
+  deps ~from:(from ^ "->paths") ~external_deps (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 
