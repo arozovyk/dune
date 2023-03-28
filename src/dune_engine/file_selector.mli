@@ -33,17 +33,20 @@ val predicate : t -> Filename.t Predicate_with_id.t
 
 val only_generated_files : t -> bool
 
-val of_glob : dir:Path.t -> Glob.t -> t
+val of_glob : dir:Path.t -> Glob.t -> string -> t
 
 val create :
      dir:Path.t
   -> ?only_generated_files:bool
   -> Filename.t Predicate_with_id.t
+  -> string
   -> t
 
 val equal : t -> t -> bool
 
 val hash : t -> int
+
+val name : t -> string
 
 val compare : t -> t -> Ordering.t
 

@@ -505,8 +505,9 @@ let setup_coqdoc_rules ~sctx ~dir ~theories_deps (s : Coq_stanza.Theory.t)
                    let+ theory_dirs = directories_of_lib ~sctx theory in
                    Dep.Set.of_list_map theory_dirs ~f:(fun dir ->
                        (* TODO *)
-                       Glob.of_string_exn Loc.none "*.glob"
-                       |> File_selector.of_glob ~dir:(Path.build dir)
+                       (File_selector.of_glob ~dir:(Path.build dir))
+                         (Glob.of_string_exn Loc.none "*.glob")
+                         "setup_coqdoc_rules"
                        |> Dep.file_selector))
              in
              Command.Args.Hidden_deps (Dep.Set.union_all deps)

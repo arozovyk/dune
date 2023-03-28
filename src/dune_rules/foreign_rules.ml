@@ -65,7 +65,7 @@ let include_dir_flags ~expander ~dir ~include_dirs =
               Dep.Set.singleton
                 (Dep.file_selector
                    (File_selector.create ~dir:include_dir
-                      Predicate_with_id.true_))
+                      Predicate_with_id.true_ "include_dir_flags"))
             in
             Command.Args.Hidden_deps deps
           | Some (build_dir, source_dir) ->
@@ -93,7 +93,7 @@ let include_dir_flags ~expander ~dir ~include_dirs =
                             Dep.Set.singleton
                               (Dep.file_selector
                                  (File_selector.create ~dir
-                                    Predicate_with_id.true_))
+                                    Predicate_with_id.true_ "include_dir_flags"))
                           in
                           Action_builder.return
                             (Appendable_list.singleton

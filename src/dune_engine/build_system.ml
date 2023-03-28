@@ -517,6 +517,34 @@ end = struct
     | Promote promote, (Some Automatically | None) ->
       Target_promotion.promote ~dir ~targets ~promote ~promote_source
 
+  let _debug_dep_facts deps from =
+    let open Dep in
+    let vals = Map.to_list deps in
+    (*   Format.eprintf "Size of vals dep map %d is %s \n " (List.length vals) from;
+               *)
+    (*  let outc = Out_channel.open_gen [ Open_append ] 1 "/tmp/debug_dep_facts" in *)
+    let deplist =
+      List.mapi
+        ~f:(fun i (dep, dep_fact) ->
+          let dep_s =
+            match dep with
+            | Env s -> "Env" ^ s
+            | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
+            | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
+            | File_selector (* of File_selector.t *) d ->
+              "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
+            | Universe -> "Universe"
+          in
+          Dep.Fact.to_dyn dep_fact |> Dyn.to_string
+          |> Format.sprintf "Dep #%d \n -- fact : %s \n -- dyn %s\n " i dep_s)
+        vals
+      |> List.fold_left ~f:(fun x y -> x ^ y ^ "\n") ~init:""
+    in
+    Dune_util.Log.info
+      [ Pp.textf "List of Deps of size %d from %s: \n %s \n ---- \n"
+          (List.length vals) from deplist
+      ]
+
   let execute_rule_impl ~rule_kind rule =
     let { Rule.id = _
         ; targets
@@ -550,16 +578,44 @@ end = struct
        memoized, and the result is not expected to change often, so we do not
        sacrifice too much performance here by executing it sequentially. *)
     let* action, deps = Action_builder.run action Eager in
+
+    let deps =
+      Dep.Map.filteri deps ~f:(fun a _ ->
+          match a with
+          | Dep.File_selector fs
+            when not
+                   (List.exists
+                      ~f:(fun external_dep ->
+                        String.equal (File_selector.name fs) external_dep)
+                      external_deps) ->
+            Dune_util.Log.info
+              [ Pp.textf "False for %s "
+                  (Targets.Validated.head targets |> Path.Build.to_string)
+              ];
+            false
+          | _ -> true)
+    in
     if
       Targets.Validated.head targets
       |> Path.Build.to_string
-      = "_build/default/bin/.main_b.eobjs/byte/dune__exe__Main_b.cmi"
+      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
     then
       Dune_util.Log.info
         [ Pp.textf "extgernal deps %s"
             (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
         ]
     else ();
+
+    _debug_dep_facts deps
+      (* ("target123 : " ^ "from2 ~ " ^ from *)
+      ("odep:--~~->" ^ "\n"
+      ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
+
+    (* Dune_util.Log.info
+       [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
+           (List.length odep_out)
+           (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") odep_out)
+       ]; *)
     let wrap_fiber f =
       Memo.of_reproducible_fiber
         (if Loc.is_none loc then f ()

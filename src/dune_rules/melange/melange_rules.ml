@@ -81,7 +81,7 @@ let cmj_includes ~(requires_link : Lib.t list Resolve.t) ~scope =
     let info = Lib.info lib in
     let obj_dir = Lib_info.obj_dir info in
     let dir = Obj_dir.melange_dir obj_dir in
-    Dep.file_selector @@ File_selector.of_glob ~dir cmj_glob
+    Dep.file_selector @@ File_selector.of_glob ~dir cmj_glob "cmj_includes"
   in
   let open Resolve.O in
   Command.Args.memo @@ Resolve.args

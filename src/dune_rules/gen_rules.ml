@@ -202,6 +202,7 @@ let define_all_alias ~dir ~project ~js_targets =
     in
     let only_generated_files = Dune_project.dune_version project >= (3, 0) in
     File_selector.create ~dir:(Path.build dir) ~only_generated_files pred
+      "define_all_alias"
     |> Action_builder.paths_matching_unit ~loc:Loc.none
   in
   Rules.Produce.Alias.add_deps (Alias.all ~dir) deps
