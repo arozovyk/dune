@@ -217,8 +217,8 @@ let standalone_runtime_rule cc ~javascript_files ~target ~flags =
       [ Resolve.Memo.args
           (let open Resolve.Memo.O in
           let+ libs = libs in
-          Command.Args.Deps (jsoo_runtime_files libs))
-      ; Deps (List.map ~f:Path.build javascript_files)
+          Command.Args.Deps (jsoo_runtime_files libs, []))
+      ; Deps (List.map ~f:Path.build javascript_files, [])
       ]
   in
   let dir = Compilation_context.dir cc in
@@ -235,8 +235,8 @@ let exe_rule cc ~javascript_files ~src ~target ~flags =
       [ Resolve.Memo.args
           (let open Resolve.Memo.O in
           let+ libs = libs in
-          Command.Args.Deps (jsoo_runtime_files libs))
-      ; Deps (List.map ~f:Path.build javascript_files)
+          Command.Args.Deps (jsoo_runtime_files libs, []))
+      ; Deps (List.map ~f:Path.build javascript_files, [])
       ; Dep (Path.build src)
       ]
   in
@@ -317,13 +317,14 @@ let link_rule cc ~runtime ~target ~obj_dir cm ~flags ~linkall
     let linkall = force_linkall || linkall in
     Command.Args.S
       [ Deps
-          (List.concat
-             [ [ stdlib ]
-             ; special_units
-             ; all_libs
-             ; all_other_modules
-             ; [ std_exit ]
-             ])
+          ( List.concat
+              [ [ stdlib ]
+              ; special_units
+              ; all_libs
+              ; all_other_modules
+              ; [ std_exit ]
+              ]
+          , [] )
       ; As
           (match (jsoo_version, linkall) with
           | Some version, true -> (

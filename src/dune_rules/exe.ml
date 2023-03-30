@@ -131,8 +131,9 @@ end
 let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
   Path.Build.relative (CC.dir cctx) (name ^ linkage.ext)
 
-let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
-    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx unit =
+let link_exe ?(from = "unknown") ~loc ~name ~(linkage : Linkage.t) ~cm_files
+    ~link_time_code_gen ~promote ~link_args ~o_files
+    ?(sandbox = Sandbox_config.default) cctx unit =
   let sctx = CC.super_context cctx in
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
@@ -142,6 +143,7 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
   let dep_graph = Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) Impl in
   let module_deps = Dep_graph.deps_of dep_graph unit in
+
   Dune_util.Log.info
     [ Pp.textf "Link_exe for  %s\n " (Module.name unit |> Module_name.to_string)
     ];
@@ -149,24 +151,42 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
     let prefix =
-      Action_builder.bind module_deps ~f:(fun md ->
+      Action_builder.bind
+        (Action_builder.map2 top_sorted_cms module_deps ~f:(fun a b -> (a, b)))
+        ~f:(fun (_todo, md) ->
           let external_deps =
             List.filter_map ~f:Module_dep.filter_external md
             |> List.map ~f:Module_dep.External_name.to_string
           in
 
-          let external_deps =
-            ("bla" ^ (Module.name unit |> Module_name.to_string))
-            :: external_deps
-          in
-          Dune_util.Log.info
-            [ Pp.textf "exe: external deps for %s\n%s"
-                (Module.name unit |> Module_name.to_string)
-                (List.fold_left ~init:""
-                   ~f:(fun a b -> a ^ b ^ "\n")
-                   external_deps)
-            ];
+          (* Dune_util.Log.info
+             [ Pp.textf
+                 "Top sorted cmc %s\n\
+                 \ cm_files.modules %s \n\
+                 \ external deps %s\n\
+                 \ from %s"
+                 (List.map2
+                    ~f:(fun a b -> "(" ^ Path.to_string a ^ ")" ^ b)
+                    (fst tst) (snd tst)
+                 |> String.concat ~sep:",\n")
+                 (Cm_files.modules cm_files
+                 |> List.map ~f:(fun m -> Module.name m |> Module_name.to_string)
+                 |> String.concat ~sep:",\n")
+                 (String.concat ~sep:",\n" external_deps)
+                 from
+             ]; *)
 
+          (* let external_deps =
+               ("bla" ^ (Module.name unit |> Module_name.to_string))
+               :: external_deps
+             in
+             Dune_util.Log.info
+               [ Pp.textf "exe: external deps for %s\n%s"
+                   (Module.name unit |> Module_name.to_string)
+                   (List.fold_left ~init:""
+                      ~f:(fun a b -> a ^ b ^ "\n")
+                      external_deps)
+               ]; *)
           Action_builder.dyn_paths_unit ~external_deps
             (Cm_files.top_sorted_objects_and_cms cm_files ~mode))
     in
@@ -193,13 +213,40 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
        In each case, we could then pass the argument in dependency order, which
        would provide a better fix for this issue. *)
     let deps =
-        (Action_builder.map module_deps ~f:(fun d ->
-             List.filter_map ~f:Module_dep.filter_external d
-             |> List.map ~f:Module_dep.External_name.to_string))
+      Action_builder.map module_deps ~f:(fun d ->
+          let external_deps =
+            List.filter_map ~f:Module_dep.filter_external d
+            |> List.map ~f:Module_dep.External_name.to_string
+          in
+          let external_deps =
+            ("bla"
+            ^ List.fold_left ~init:""
+                ~f:(fun a b -> a ^ b ^ "\n")
+                (List.map ~f:Path.to_string o_files)
+            ^ "->")
+            :: external_deps
+          in
+          external_deps)
     in
-    let deps = deps in
+    let _deps = deps in
+
+    (* Get external dependencies for each cms from the graph *)
+    let ext_dep_graph =
+      Action_builder.map top_sorted_cms ~f:(fun (_, mlist) ->
+          List.map mlist ~f:(fun m ->
+              let m_deps =
+                Dep_graph.deps_of dep_graph m
+                |> Action_builder.map ~f:(fun mdeps ->
+                       List.filter_map ~f:Module_dep.filter_external mdeps
+                       |> List.map ~f:Module_dep.External_name.to_string)
+              in
+
+              (Module.name m |> Module_name.to_string, m_deps)))
+    in
+
     Action_builder.with_no_targets prefix
-    >>> Command.run ~deps ~from:"link_exe" ~dir:(Path.build ctx.build_dir)
+    >>> Command.run ~deps:ext_dep_graph ~from:(from ^ "->link_exe")
+          ~dir:(Path.build ctx.build_dir)
           (Context.compiler ctx mode)
           [ Command.Args.dyn ocaml_flags
           ; A "-o"
@@ -215,10 +262,13 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
                 ; Lib_flags.Lib_and_module.L.link_flags sctx to_link
                     ~lib_config:ctx.lib_config ~mode:linkage.mode
                 ])
-          ; Deps o_files
+          ; Deps (o_files, [])
           ; Dyn
-              (Action_builder.map top_sorted_cms ~f:(fun x ->
-                   Command.Args.Deps x))
+              (Action_builder.map top_sorted_cms ~f:(fun (p, mlist) ->
+                   Command.Args.Deps
+                     ( p
+                     , List.map mlist ~f:(fun m ->
+                           Module.name m |> Module_name.to_string) )))
           ; fdo_linker_script_flags
           ; Dyn link_args
           ]
@@ -253,7 +303,8 @@ let link_js ~name ~loc ~obj_dir ~top_sorted_modules ~link_args ~promote
 
 type dep_graphs = { for_exes : Module.t list Action_builder.t list }
 
-let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
+let link_many ?(from = "unknown")
+    ?(link_args = Action_builder.return Command.Args.empty) ?o_files
     ?(embed_in_plugin_libraries = []) ?sandbox ~programs ~linkages ~promote cctx
     =
   let open Memo.O in
@@ -312,23 +363,31 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
                   | Byte | Byte_for_jsoo | Byte_with_stubs_statically_linked_in
                     -> (link_args, select_o_files Mode.Byte)
                 in
-                link_exe cctx main ~loc ~name ~linkage ~cm_files
-                  ~link_time_code_gen ~promote ~link_args ~o_files ?sandbox)
+                link_exe
+                  ~from:
+                    (from ^ "->link_many"
+                    ^ (List.length o_files |> Int.to_string))
+                  cctx main ~loc ~name ~linkage ~cm_files ~link_time_code_gen
+                  ~promote ~link_args ~o_files ?sandbox)
         in
         top_sorted_modules)
   in
   { for_exes }
 
-let build_and_link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
-    ~programs ~linkages ~promote cctx =
+let build_and_link_many ?(from = "unkn") ?link_args ?o_files
+    ?embed_in_plugin_libraries ?sandbox ~programs ~linkages ~promote cctx =
   let open Memo.O in
   let* () = Module_compilation.build_all cctx in
-  link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox ~programs
-    ~linkages ~promote cctx
+  link_many
+    ~from:(from ^ "->build_and_link_many")
+    ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox ~programs ~linkages
+    ~promote cctx
 
-let build_and_link ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
-    ~program ~linkages ~promote cctx =
-  build_and_link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
+let build_and_link ?(from = "unkn") ?link_args ?o_files
+    ?embed_in_plugin_libraries ?sandbox ~program ~linkages ~promote cctx =
+  build_and_link_many
+    ~from:(from ^ "->build_and_link")
+    ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
     ~programs:[ program ] ~linkages ~promote cctx
 
 let exe_path cctx ~(program : Program.t) ~linkage =

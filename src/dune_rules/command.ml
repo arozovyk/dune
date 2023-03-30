@@ -18,7 +18,7 @@ module Args0 = struct
     | S : 'a t list -> 'a t
     | Concat : string * 'a t list -> 'a t
     | Dep : Path.t -> _ t
-    | Deps : Path.t list -> _ t
+    | Deps : (Path.t list * string list) -> _ t
     | Target : Path.Build.t -> [> `Targets ] t
     | Path : Path.t -> _ t
     | Paths : Path.t list -> _ t
@@ -51,17 +51,13 @@ open Args0
 
 let rec expand :
     type a.
-       ?deps:string list Action_builder.t
+       ?deps:(string * string list Action_builder.t) list Action_builder.t
     -> ?from:string
     -> dir:Path.t
     -> a t
     -> string list Action_builder.With_targets.t =
- fun ?deps ?(from = "unknown321") ~dir t ->
-  let deps =
-    match deps with
-    | Some s -> s
-    | None -> Action_builder.return [ "" ]
-  in
+ fun ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
+     ?(from = "unknown321") ~dir t ->
   match t with
   | A s -> Action_builder.With_targets.return [ s ]
   | As l -> Action_builder.With_targets.return l
@@ -70,11 +66,19 @@ let rec expand :
       (Action_builder.map (Action_builder.path fn) ~f:(fun () ->
            [ Path.reach fn ~from:dir ]))
   | Path fn -> Action_builder.With_targets.return [ Path.reach fn ~from:dir ]
-  | Deps fns ->
+  | Deps (fns, m_name_list) ->
     Action_builder.with_no_targets
       (Action_builder.map
-         (Action_builder.bind deps ~f:(fun external_deps ->
-              Action_builder.paths ~external_deps ~from:(from ^ "->expand") fns))
+         (Action_builder.bind deps ~f:(fun external_deps_map ->
+              (if List.length fns == List.length m_name_list then
+               let external_module_deps =
+                 List.map external_deps_map ~f:(fun (a, b) ->
+                     (a, Action_builder.map b ~f:(fun deps -> deps)))
+               in
+               let _ext_dep_map = String.Map.of_list_exn external_module_deps in
+               ());
+              Action_builder.paths ~external_deps:[] ~from:(from ^ "->expand")
+                fns))
          ~f:(fun () -> List.map fns ~f:(Path.reach ~from:dir)))
   | Paths fns ->
     Action_builder.With_targets.return (List.map fns ~f:(Path.reach ~from:dir))
@@ -104,14 +108,10 @@ let rec expand :
       (Action_builder.return [])
   | Expand f -> Action_builder.with_no_targets (f ~dir)
 
-and expand_no_targets ?deps ?(from = "unknown123") ~dir (t : without_targets t)
-    =
+and expand_no_targets
+    ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
+    ?(from = "unknown123") ~dir (t : without_targets t) =
   let { Action_builder.With_targets.build; targets } =
-    let deps =
-      match deps with
-      | Some s -> s
-      | None -> Action_builder.return [ "" ]
-    in
     expand ~deps ~from:(from ^ "expand_no_targets") ~dir t
   in
   assert (Targets.is_empty targets);
@@ -121,8 +121,10 @@ let dep_prog = function
   | Ok p -> Action_builder.path p
   | Error _ -> Action_builder.return ()
 
-let run ?(deps = Action_builder.return [ "" ]) ?(from = "unknown") ~dir ?sandbox
-    ?stdout_to prog args =
+let run ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
+    ?(from = "unknown") ~dir ?sandbox ?stdout_to prog args =
+  (*   let deps = Action_builder.return [ "" ] in
+ *)
   Action_builder.With_targets.add ~file_targets:(Option.to_list stdout_to)
     (let open Action_builder.With_targets.O in
     let+ () = Action_builder.with_no_targets (dep_prog prog)

@@ -186,11 +186,42 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     let* () =
       Check_rules.add_files sctx ~dir @@ Mode.Map.Multi.to_flat_list o_files
     in
+   (*  let _ofs, _ =
+      Mode.Map.fold_mapi ~init:"" o_files ~f:(fun _ b c ->
+          ( "-" ^ b ^ String.concat ~sep:"~" (List.map ~f:Path.to_string c)
+          , o_files ))
+    in
+    Dune_util.Log.info
+      [ Pp.textf "exe_rules ( , %s)"
+          (*  (Modules.to_dyn modules |> Dyn.to_string) *)
+          _ofs
+        (* (List.map ~f:Path.to_string
+              (Mode.Map.find_exn o_files Mode.Select.All)
+           |> String.concat ~sep:"-") *)
+      ]; *)
+    (* if Option.is_none ofs then
+       Dune_util.Log.info
+         [ Pp.textf "exe_rules (%s, --)"
+             (Modules.to_dyn modules |> Dyn.to_string)
+             (List.map ~f:Path.to_string
+                (Mode.Map.find_exn o_files Mode.Select.All)
+             |> String.concat ~sep:"-")
+         ]; *)
+    (* Dune_util.Log.info
+       [ Pp.textf "exe_rules (%s,%s)"
+           (Modules.to_dyn modules |> Dyn.to_string)
+           (List.map ~f:Path.to_string
+              (Mode.Map.find_exn o_files Mode.Select.Only)
+           |> String.concat ~sep:"")
+       ]; *)
     let buildable = exes.buildable in
     match buildable.ctypes with
     | None ->
-      Exe.build_and_link_many cctx ~programs ~linkages ~link_args ~o_files
-        ~promote:exes.promote ~embed_in_plugin_libraries ~sandbox
+      let values = Mode.Map.values o_files in
+      Exe.build_and_link_many
+        ~from:((List.length values |> Int.to_string) ^ "executable_rules220")
+        cctx ~programs ~linkages ~link_args ~o_files ~promote:exes.promote
+        ~embed_in_plugin_libraries ~sandbox
     | Some { version; _ } ->
       (* Ctypes stubgen builds utility .exe files that need to share modules
          with this compilation context. To support that, we extract the one-time
@@ -202,8 +233,8 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         Ctypes_rules.gen_rules ~cctx ~buildable ~loc ~sctx ~scope ~dir ~version
       in
       let* () = Module_compilation.build_all cctx in
-      Exe.link_many ~programs ~linkages ~link_args ~o_files
-        ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
+      Exe.link_many ~from:"executable_rules" ~programs ~linkages ~link_args
+        ~o_files ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
   in
   let+ () =
     Memo.parallel_iter dep_graphs.for_exes

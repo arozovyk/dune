@@ -20,27 +20,27 @@ let parse_module_names ~dir ~(unit : Module.t) ~modules words =
          (Module.name unit |> Module_name.to_string)
          (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") words ~init:"")
      ]; *)
-  List.concat_map words ~f:(fun mn ->
-      let m = Module_name.of_string mn in
-      match Modules.find_dep modules ~of_:unit m with
+  List.concat_map words ~f:(fun mns ->
+      let mname = Module_name.of_string mns in
+      match Modules.find_dep modules ~of_:unit mname with
       | Ok [] ->
         (* Dune_util.Log.info
            [ Pp.textf "Got an external: \n  %s " (Module_name.to_string m) ]; *)
-        [ Module_dep.External (Module_dep.External_name.of_string mn) ]
+        [ Module_dep.External (Module_dep.External_name.of_string mns) ]
       | Ok s -> List.map s ~f:(fun x -> Module_dep.Local x)
       | Error `Parent_cycle ->
         User_error.raise
           [ Pp.textf "Module %s in directory %s depends on %s."
               (Module_name.to_string (Module.name unit))
               (Path.to_string_maybe_quoted (Path.build dir))
-              (Module_name.to_string m)
+              (Module_name.to_string mname)
           ; Pp.textf "This doesn't make sense to me."
           ; Pp.nop
           ; Pp.textf
               "%s is the main module of the library and is the only module \
                exposed outside of the library. Consequently, it should be the \
                one depending on all the other modules in the library."
-              (Module_name.to_string m)
+              (Module_name.to_string mname)
           ])
 
 let parse_compilation_units ~modules =

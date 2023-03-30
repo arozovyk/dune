@@ -243,7 +243,11 @@ module type Rec = sig
 
   val build_dir : Path.t -> (Digest.t * Digest.t Path.Build.Map.t) Memo.t
 
-  val build_deps : ?from:string-> ?external_deps:string list -> Dep.Set.t -> Dep.Facts.t Memo.t
+  val build_deps :
+       ?from:string
+    -> ?external_deps:string list
+    -> Dep.Set.t
+    -> Dep.Facts.t Memo.t
 
   val eval_deps :
     'a Action_builder.eval_mode -> Dep.Set.t -> 'a Dep.Map.t Memo.t
@@ -601,13 +605,14 @@ end = struct
     if
       Targets.Validated.head targets
       |> Path.Build.to_string
-      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
+      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
     then
       Dune_util.Log.info
-        [ Pp.textf "extgernal deps Main_b %s"
+        [ Pp.textf "extgernal deps  %s"
             (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
         ]
     else ();
+
     (* Dune_util.Log.info
        [ Pp.textf "extgernal deps %s for %s "
            (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
@@ -617,8 +622,8 @@ end = struct
        (* ("target123 : " ^ "from2 ~ " ^ from *)
        ("odep:--~~->"
        ^ ((List.length external_deps |> Int.to_string) ^ "\n")
-       ^ (Targets.Validated.to_dyn targets |> Dyn.to_string));
-    *)
+       ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
+
     (* Dune_util.Log.info
        [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"
            (List.length odep_out)
@@ -947,15 +952,15 @@ end = struct
   (* A rule can have multiple targets but calls to [execute_rule] are memoized,
      so the rule will be executed only once. *)
   let build_file_impl ?(external_deps = []) path =
-    if
-      String.equal (Dpath.describe_path path)
-        "bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
-    then
-      Dune_util.Log.info
-        [ Pp.textf "build_file_impl: external deps for %s\n%s"
-            (Dpath.describe_path path)
-            (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
-        ];
+    (* if
+         String.equal (Dpath.describe_path path)
+           "bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
+       then
+         Dune_util.Log.info
+           [ Pp.textf "build_file_impl: external deps for %s\n%s"
+               (Dpath.describe_path path)
+               (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
+           ]; *)
     Load_rules.get_rule_or_source path >>= function
     | Source digest -> Memo.return (digest, File_target)
     | Rule (path, rule) -> (
@@ -1137,16 +1142,17 @@ end = struct
       (build_file_impl ~external_deps)
 
   let build_file ?(from = "unknown") ?(external_deps = []) path =
-    if
-      String.equal (Dpath.describe_path path)
-        "bin/.main_b.eobjs/native/dune__exe__Main_b.cmx"
-    then
-      Dune_util.Log.info
-        [ Pp.textf "from(%s)123build_file: external deps for %s\n%s" from
-            (Dpath.describe_path path)
-            (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
-        ];
+    let _ = from in
 
+    (* if
+         String.equal (Dpath.describe_path path)
+           "bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
+       then
+         Dune_util.Log.info
+           [ Pp.textf "from(%s)123build_file: external deps for %s\n%s" from
+               (Dpath.describe_path path)
+               (List.fold_left ~init:"" ~f:(fun a b -> a ^ b ^ "\n") external_deps)
+           ]; *)
     Memo.exec (build_file_memo ~external_deps ()) path >>| fst
 
   let build_dir path =

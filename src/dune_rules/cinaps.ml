@@ -107,7 +107,7 @@ let gen_rules sctx t ~dir ~scope =
       (Command.run ~from:"gen_rules" ~dir:(Path.build dir) prog ~sandbox
          [ A "-staged"
          ; Target cinaps_ml
-         ; Deps (List.map cinapsed_files ~f:Path.build)
+         ; Deps (List.map cinapsed_files ~f:Path.build, [])
          ])
   and* expander = Super_context.expander sctx ~dir in
   let preprocess =

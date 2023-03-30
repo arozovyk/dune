@@ -93,8 +93,14 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
                   | Normal -> []
                   | Ppx_deriver _ | Ppx_rewriter _ -> [ "-linkall" ])
               ; Dyn
-                  (Cm_files.top_sorted_cms cm_files ~mode
-                  |> Action_builder.map ~f:(fun x -> Command.Args.Deps x))
+                  (Action_builder.map (Cm_files.top_sorted_cms cm_files ~mode)
+                     ~f:(fun (paths, m_list) ->
+                       let m_list =
+                         List.map
+                           ~f:(fun m -> Module.name m |> Module_name.to_string)
+                           m_list
+                       in
+                       Command.Args.Deps (paths, m_list)))
               ; Hidden_targets
                   (match mode with
                   | Byte -> []
@@ -103,8 +109,9 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
                   (Action_builder.map ctypes_cclib_flags ~f:(fun x ->
                        Command.quote_args "-cclib" (map_cclibs x)))
               ; Deps
-                  (Foreign.Objects.build_paths lib.buildable.extra_objects
-                     ~ext_obj:ctx.lib_config.ext_obj ~dir)
+                  ( Foreign.Objects.build_paths lib.buildable.extra_objects
+                      ~ext_obj:ctx.lib_config.ext_obj ~dir
+                  , [] )
               ]))
 
 let gen_wrapped_compat_modules (lib : Library.t) cctx =
@@ -220,9 +227,9 @@ let foreign_rules (library : Foreign.Library.t) ~sctx ~expander ~dir
       Foreign_rules.build_o_files ~sctx ~dir ~expander
         ~requires:(Resolve.return []) ~dir_contents ~foreign_sources
     in
-    Mode.Map.Multi.for_all_modes o_files_by_mode
+    (Mode.Map.Multi.for_all_modes o_files_by_mode, [])
   in
-  let* () = Check_rules.add_files sctx ~dir o_files in
+  let* () = Check_rules.add_files sctx ~dir (fst o_files) in
   let* standard =
     let+ project =
       let+ scope = Scope.DB.find_by_dir dir in
@@ -295,7 +302,7 @@ let build_stubs lib ~cctx ~dir ~expander ~requires ~dir_contents
              @@ Mode.Map.Multi.for_only ~and_all:false o_files mode)
     then
       (* if stubs are not mode dependent *)
-      let o_files = for_all_modes in
+      let o_files = (for_all_modes, []) in
       ocamlmklib ~archive_name ~loc:lib.buildable.loc ~sctx ~dir ~o_files
         ~c_library_flags ~build_targets_together ~stubs_mode:Mode.Select.All
     else
@@ -309,6 +316,7 @@ let build_stubs lib ~cctx ~dir ~expander ~requires ~dir_contents
                , Mode.Select.Only mode ))
       in
       Memo.parallel_iter modes ~f:(fun (o_files, stubs_mode) ->
+          let o_files = (o_files, []) in
           ocamlmklib ~archive_name ~loc:lib.buildable.loc ~sctx ~dir ~o_files
             ~c_library_flags ~build_targets_together ~stubs_mode)
 

@@ -901,6 +901,8 @@ let get_rule_internal path =
   load_dir ~dir:(Path.build dir) >>= function
   | External _ | Source _ -> assert false
   | Build { rules_here; _ } -> (
+    (* Dune_util.Log.info
+      [ Pp.textf "get_rule_internal %s\n" (Path.Build.to_string path) ]; *)
     match Path.Build.Map.find rules_here.by_file_targets path with
     | Some _ as rule -> Memo.return rule
     | None ->
