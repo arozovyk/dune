@@ -132,10 +132,10 @@ let rec expand :
            expand_no_targets ~module_name_built ~deps ~from ~dir t))
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
-    Dune_util.Log.info
+(*     Dune_util.Log.info
       [ Pp.textf "Hidden_deps for %s %s\n" module_name_built
           (Dep.Set.to_dyn deps |> Dyn.to_string)
-      ];
+      ]; *)
     (* if not (String.equal module_name_built "Not_defined") then
        Dune_util.Log.info [ Pp.textf "HIDDEN DEPS NOT DEF" ]; *)
     Action_builder.with_no_targets
@@ -151,8 +151,8 @@ let rec expand :
     Action_builder.with_file_targets ~file_targets:fns
       (Action_builder.return [])
   | Expand f ->
-    Dune_util.Log.info [ Pp.textf "expand from %s" from ];
-    Action_builder.with_no_targets (f ~dir)
+(*     Dune_util.Log.info [ Pp.textf "expand from %s" from ];
+ *)    Action_builder.with_no_targets (f ~dir)
 
 and expand_no_targets ?(module_name_built = "Not_defined")
     ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])

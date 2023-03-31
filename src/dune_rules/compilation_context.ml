@@ -5,7 +5,8 @@ module Includes = struct
 
   let make ?(from = "unknown") () ~project ~opaque ~requires ~md :
       _ Lib_mode.Cm_kind.Map.t =
-    let _ = md in
+    let mname = Module.name md |> Module_name.to_string in
+
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let make_includes_args ~mode groups =
@@ -13,6 +14,10 @@ module Includes = struct
         ~from:(from ^ "->complilation_context.includes.make.make_includes_args")
         (Resolve.Memo.args
            (let+ libs = requires in
+            Dune_util.Log.info
+              [ Pp.textf "Making context for module %s libs are %s\n " mname
+                  (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+              ];
             (* Dune_util.Log.info
                [ Pp.textf "Includes.make cmi_includes libs are %s \n "
                    (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
