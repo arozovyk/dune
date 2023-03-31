@@ -237,11 +237,12 @@ let extend_action t ~dir build =
 
 let make_rule ?(from = "unknown") t ?mode ?loc ~dir
     { Action_builder.With_targets.build; targets } =
-  Dune_util.Log.info
-    [ Pp.textf "Super_context.make_rule from:%s  Path:%s\nTargets:%s\n" from
-        (Path.Build.to_string dir)
-        (Targets.to_dyn targets |> Dyn.to_string)
-    ];
+  let _ = from in
+  (* Dune_util.Log.info
+     [ Pp.textf "Super_context.make_rule from:%s  Path:%s\nTargets:%s\n" from
+         (Path.Build.to_string dir)
+         (Targets.to_dyn targets |> Dyn.to_string)
+     ]; *)
   let build = extend_action t build ~dir in
   Rule.make ?mode ~info:(Rule.Info.of_loc_opt loc)
     ~context:(Some (Context.build_context (Env_tree.context t)))

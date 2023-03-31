@@ -3,8 +3,9 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let make ?(from = "unknown") () ~project ~opaque ~requires :
+  let make ?(from = "unknown") () ~project ~opaque ~requires ~md :
       _ Lib_mode.Cm_kind.Map.t =
+    let _ = md in
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let make_includes_args ~mode groups =
@@ -12,10 +13,10 @@ module Includes = struct
         ~from:(from ^ "->complilation_context.includes.make.make_includes_args")
         (Resolve.Memo.args
            (let+ libs = requires in
-            Dune_util.Log.info
-              [ Pp.textf "Includes.make cmi_includes libs are %s \n "
-                  (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-              ];
+            (* Dune_util.Log.info
+               [ Pp.textf "Includes.make cmi_includes libs are %s \n "
+                   (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+               ]; *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps
@@ -28,10 +29,10 @@ module Includes = struct
         ~from:(from ^ "->complilation_context.includes.make")
         (Resolve.Memo.args
            (let+ libs = requires in
-            Dune_util.Log.info
-              [ Pp.textf "Includes.make cmx_includes libs are %s \n "
-                  (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-              ];
+            (* Dune_util.Log.info
+               [ Pp.textf "Includes.make cmx_includes libs are %s \n "
+                   (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+               ]; *)
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -87,7 +88,7 @@ type t =
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
   ; requires_link : Lib.t list Resolve.t Memo.Lazy.t
-  ; includes : Includes.t
+  ; includes : md:Module.t -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
   ; stdlib : Ocaml_stdlib.t option
@@ -197,8 +198,8 @@ let create ?(from = "unkn") ~super_context ~scope ~expander ~obj_dir ~modules
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
-  Dune_util.Log.info [ Pp.textf "create from %s" from ];
-
+  (*   Dune_util.Log.info [ Pp.textf "create from %s" from ];
+ *)
   { super_context
   ; scope
   ; expander
@@ -241,9 +242,9 @@ let for_alias_module t alias_module =
       Sandbox_config.needs_sandboxing
     else Sandbox_config.no_special_requirements
   in
-  let (modules, includes) : modules * Includes.t =
+  let (modules, includes) : modules * (md:Module.t -> Includes.t) =
     match Modules.is_stdlib_alias t.modules.modules alias_module with
-    | false -> (singleton_modules alias_module, Includes.empty)
+    | false -> (singleton_modules alias_module, fun ~md:_ -> Includes.empty)
     | true ->
       (* The stdlib alias module is different from the alias modules usually
          produced by Dune: it contains code and depends on a few other
@@ -297,7 +298,8 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   ; modules
   }
 
-let for_wrapped_compat t = { t with includes = Includes.empty; stdlib = None }
+let for_wrapped_compat t =
+  { t with includes = (fun ~md:_ -> Includes.empty); stdlib = None }
 
 let for_plugin_executable t ~embed_in_plugin_libraries =
   let libs = Scope.libs t.scope in

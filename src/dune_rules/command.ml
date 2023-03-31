@@ -51,14 +51,16 @@ open Args0
 
 let rec expand :
     type a.
-       ?deps:(string * string list Action_builder.t) list Action_builder.t
+       ?module_name_built:string
+    -> ?deps:(string * string list Action_builder.t) list Action_builder.t
     -> ?from:string
     -> dir:Path.t
     -> a t
     -> string list Action_builder.With_targets.t =
- fun ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
+ fun ?(module_name_built = "Not_defined")
+     ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
      ?(from = "unknown321") ~dir t ->
-  let s =
+  let _s =
     match t with
     | A s -> "A   " ^ s
     | As s -> " As  " ^ String.concat ~sep:"," s
@@ -75,9 +77,11 @@ let rec expand :
     | Target _ -> "Target"
     | Hidden_targets _ -> "Hidden_targets"
   in
-  if String.equal from "build_cm" then
-    Dune_util.Log.info [ Pp.textf "buildcmfrom %s %s\n" from s ];
-
+ (*  if not (String.equal module_name_built "Not_defined") then
+    Dune_util.Log.info
+      [ Pp.textf "Expand for module %s is %s\n" module_name_built _s ]; *)
+  (* if Char.equal (String.get from 0) '3' then
+     Dune_util.Log.info [ Pp.textf "buildcmfrom %s %s\n" from s ]; *)
   match t with
   | A s -> Action_builder.With_targets.return [ s ]
   | As l -> Action_builder.With_targets.return l
@@ -108,22 +112,32 @@ let rec expand :
       (Action_builder.With_targets.all
          (List.map ts
             ~f:
-              (expand ~deps
-                 ~from:(from ^ "iter S ~>" ^ (List.length ts |> Int.to_string))
+              (expand ~module_name_built ~deps
+                 ~from:
+                   (Printf.sprintf "  %s iter S ~>  %s module_built %s\n" from
+                      (List.length ts |> Int.to_string)
+                      module_name_built)
                  ~dir)))
       ~f:List.concat
   | Concat (sep, ts) ->
-    Action_builder.With_targets.map (expand ~deps ~from ~dir (S ts))
-      ~f:(fun x -> [ String.concat ~sep x ])
+    Action_builder.With_targets.map
+      (expand ~module_name_built ~deps ~from ~dir (S ts)) ~f:(fun x ->
+        [ String.concat ~sep x ])
   | Target fn ->
     Action_builder.with_file_targets ~file_targets:[ fn ]
       (Action_builder.return [ Path.reach (Path.build fn) ~from:dir ])
   | Dyn dyn ->
     Action_builder.with_no_targets
       (Action_builder.bind dyn ~f:(fun t ->
-           expand_no_targets ~deps ~from ~dir t))
+           expand_no_targets ~module_name_built ~deps ~from ~dir t))
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
+    Dune_util.Log.info
+      [ Pp.textf "Hidden_deps for %s %s\n" module_name_built
+          (Dep.Set.to_dyn deps |> Dyn.to_string)
+      ];
+    (* if not (String.equal module_name_built "Not_defined") then
+       Dune_util.Log.info [ Pp.textf "HIDDEN DEPS NOT DEF" ]; *)
     Action_builder.with_no_targets
       (Action_builder.map
          (Action_builder.deps
@@ -136,13 +150,15 @@ let rec expand :
   | Hidden_targets fns ->
     Action_builder.with_file_targets ~file_targets:fns
       (Action_builder.return [])
-  | Expand f -> Action_builder.with_no_targets (f ~dir)
+  | Expand f ->
+    Dune_util.Log.info [ Pp.textf "expand from %s" from ];
+    Action_builder.with_no_targets (f ~dir)
 
-and expand_no_targets
+and expand_no_targets ?(module_name_built = "Not_defined")
     ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
     ?(from = "unknown123") ~dir (t : without_targets t) =
   let { Action_builder.With_targets.build; targets } =
-    expand ~deps ~from ~dir t
+    expand ~module_name_built ~deps ~from ~dir t
   in
   assert (Targets.is_empty targets);
   build
@@ -151,14 +167,17 @@ let dep_prog = function
   | Ok p -> Action_builder.path ~from:"dep_prog" p
   | Error _ -> Action_builder.return ()
 
-let run ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
+let run ?(module_name_built = "Not_defined")
+    ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
     ?(from = "unknown") ~dir ?sandbox ?stdout_to prog args =
   (*   let deps = Action_builder.return [ "" ] in
  *)
   Action_builder.With_targets.add ~file_targets:(Option.to_list stdout_to)
     (let open Action_builder.With_targets.O in
     let+ () = Action_builder.with_no_targets (dep_prog prog)
-    and+ args = expand ~deps ~from ~dir (S args) in
+    and+ args =
+      expand ~module_name_built ~deps ~from:(from ^ "Command.run") ~dir (S args)
+    in
     let action = Action.run prog args in
     let action =
       match stdout_to with

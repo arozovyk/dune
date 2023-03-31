@@ -1087,9 +1087,10 @@ end = struct
         Memo.return (Dep.Fact.Files.make ~files ~dirs)
 
     let eval_impl ?(from = "unknown") g =
+      let _ = from in
       let dir = File_selector.dir g in
-      Dune_util.Log.info [ Pp.textf "TODO2" ];
-
+(*       Dune_util.Log.info [ Pp.textf "TODO2" ];
+ *)
       Load_rules.load_dir ~dir >>= function
       | Source { files } ->
         Path.set_of_source_paths files
@@ -1100,11 +1101,10 @@ end = struct
         |> Path.Set.filter ~f:(File_selector.test g)
         |> Memo.return
       | Build { rules_here; _ } ->
-        Dune_util.Log.info
-          [ Pp.textf "in TODO2 from %s fs %s " from
-              (File_selector.to_dyn g |> Dyn.to_string)
-          ];
-
+        (* Dune_util.Log.info
+           [ Pp.textf "in TODO2 from %s fs %s " from
+               (File_selector.to_dyn g |> Dyn.to_string)
+           ]; *)
         let only_generated_files = File_selector.only_generated_files g in
         (* We look only at [by_file_targets] because [File_selector] does not
            match directories. *)
@@ -1132,7 +1132,7 @@ end = struct
             ])
         ~input:(module File_selector)
         ~cutoff:Path.Set.equal
-        (eval_impl ~from:(from^"->eval_memo"))
+        (eval_impl ~from:(from ^ "->eval_memo"))
 
     let eval = Memo.exec (eval_memo ())
 

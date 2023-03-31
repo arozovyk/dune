@@ -78,7 +78,8 @@ end
 (* TODO: Using list in [with_targets t list] complicates the API unnecessarily:
    we can use the constructor [S] to concatenate lists instead. *)
 val run :
-     ?deps:(string * string list Action_builder.t) list Action_builder.t
+     ?module_name_built:string
+  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
   -> ?from:string
   -> dir:Path.t
   -> ?sandbox:Sandbox_config.t
@@ -109,7 +110,8 @@ end
     corresponding strings, assuming they will be used as arguments to run a
     command in directory [dir]. *)
 val expand :
-     ?deps:(string * string list Action_builder.t) list Action_builder.t
+     ?module_name_built:string
+  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
   -> ?from:string
   -> dir:Path.t
   -> 'a Args.t
@@ -119,7 +121,8 @@ val expand :
     to produce corresponding strings, assuming they will be used as arguments to
     run a command in directory [dir]. *)
 val expand_no_targets :
-     ?deps:(string * string list Action_builder.t) list Action_builder.t
+     ?module_name_built:string
+  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
   -> ?from:string
   -> dir:Path.t
   -> Args.without_targets Args.t

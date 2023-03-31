@@ -332,12 +332,12 @@ end = struct
                 (fun mode ->
                   let path = Path.source path' in
                   let+ fact = eval_source_file mode path in
-                  Dune_util.Log.info
+                 (*  Dune_util.Log.info
                     [ Pp.textf "Load_rule.create_copy_rules %s\nPath:%s\n"
                         (Path.Build.to_string ctx_dir)
                         (Path.Source.to_string path')
                     ];
-
+ *)
                   ( Action.Full.make
                       (Action.copy path ctx_path)
                       (* There's an [assert false] in [prepare_managed_paths]
@@ -382,8 +382,8 @@ end = struct
     { Loaded.by_file_targets; by_directory_targets }
 
   let lookup_alias alias =
-    Dune_util.Log.info [ Pp.textf "TODO6" ];
-
+(*     Dune_util.Log.info [ Pp.textf "TODO6" ];
+ *)
     load_dir ~dir:(Path.build (Alias.dir alias)) >>| function
     | Source _ | External _ ->
       Code_error.raise "Alias in a non-build dir"
@@ -495,8 +495,8 @@ end = struct
       else
         Restricted
           (Memo.Lazy.create ~name:"allowed_dirs" (fun () ->
-               Dune_util.Log.info [ Pp.textf "TODO7" ];
-
+             (*   Dune_util.Log.info [ Pp.textf "TODO7" ];
+ *)
                load_dir ~dir:(Path.build dir) >>| function
                | External _ | Source _ -> Dir_set.just_the_root
                | Build { allowed_subdirs; _ } ->

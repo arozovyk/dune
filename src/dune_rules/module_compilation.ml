@@ -245,7 +245,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   in
   let includ' =
     (* Filter this depending on module that is being compiled and ocamldepdependecies*)
-    let incls = Lib_mode.Cm_kind.Map.get (CC.includes cctx) cm_kind in
+    let incls = Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind in
     let rec tostr acc (i : Command.Args.without_targets Command.Args.t) =
       let open Command.Args in
       let v =
@@ -293,7 +293,9 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
            in
            Action_builder.paths ~from:"build_cm" ~external_deps extra_deps))
     >>> Action_builder.with_no_targets other_cm_files
-    >>> Command.run ~from:"build_cm" ~dir:(Path.build ctx.build_dir) compiler
+    >>> Command.run
+          ~module_name_built:(Module.name m |> Module_name.to_string)
+          ~from:"build_cm" ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags
           ; cmt_args
           ; Command.Args.S obj_dirs
@@ -395,7 +397,7 @@ let ocamlc_i ~(deps : Module_dep.t list Action_builder.t Ml_kind.Dict.t) cctx
              ; A "-I"
              ; Path (Path.build (Obj_dir.byte_dir obj_dir))
              ; Command.Args.as_any
-                 (Lib_mode.Cm_kind.Map.get (CC.includes cctx) (Ocaml Cmo))
+                 (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) (Ocaml Cmo))
              ; opens modules m
              ; A "-short-paths"
              ; A "-i"
