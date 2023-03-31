@@ -75,7 +75,7 @@ val with_no_targets : 'a t -> 'a With_targets.t
 
 (** [path p] records [p] as a file that is read by the action produced by the
     action builder. *)
-val path : Path.t -> unit t
+val path : ?from:string -> Path.t -> unit t
 
 val dep : Dep.t -> unit t
 
@@ -83,7 +83,7 @@ val deps : ?from:string -> ?external_deps:string list -> Dep.Set.t -> unit t
 
 val dyn_deps : ?external_deps:string list -> ('a * Dep.Set.t) t -> 'a t
 
-val paths : ?from :string -> ?external_deps:string list -> Path.t list -> unit t
+val paths : ?from:string -> ?external_deps:string list -> Path.t list -> unit t
 
 val path_set : Path.Set.t -> unit t
 

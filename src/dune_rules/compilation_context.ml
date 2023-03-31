@@ -12,7 +12,8 @@ module Includes = struct
            (let+ libs = requires in
             Command.Args.S
               [ iflags libs mode
-              ; Hidden_deps (Lib_file_deps.deps libs ~groups)
+              ; Hidden_deps
+                  (Lib_file_deps.deps ~from:"make_includes_args " libs ~groups)
               ]))
     in
     let cmi_includes = make_includes_args ~mode:(Ocaml Byte) [ Ocaml Cmi ] in
@@ -31,7 +32,7 @@ module Includes = struct
                          else [ Ocaml Cmi; Ocaml Cmx ] ))
                    |> Lib_file_deps.deps_with_exts
                   else
-                    Lib_file_deps.deps libs
+                    Lib_file_deps.deps ~from:"cmx_includes " libs
                       ~groups:[ Lib_file_deps.Group.Ocaml Cmi; Ocaml Cmx ])
               ]))
     in
@@ -140,7 +141,7 @@ let ocamldep_modules_data t = t.ocamldep_modules_data
 
 let dep_graphs t = t.modules.dep_graphs
 
-let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
+let create ?(from="unkn") ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     () =
@@ -185,6 +186,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
+  Dune_util.Log.info [ Pp.textf "create from %s" from ];
+
   { super_context
   ; scope
   ; expander

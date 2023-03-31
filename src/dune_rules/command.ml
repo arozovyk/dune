@@ -58,13 +58,34 @@ let rec expand :
     -> string list Action_builder.With_targets.t =
  fun ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
      ?(from = "unknown321") ~dir t ->
+  let s =
+    match t with
+    | A s -> "A   " ^ s
+    | As s -> " As  " ^ String.concat ~sep:"," s
+    | S _ -> " S  "
+    | Concat _ -> "Concat"
+    | Dep p -> " Dep  " ^ Path.to_string p
+    | Deps _ -> "  Deps "
+    | Path _ -> " Path  "
+    | Paths _ -> "Paths"
+    | Hidden_deps _ -> "Hidden_deps"
+    | Dyn _ -> "Dyn"
+    | Fail _ -> "Fail"
+    | Expand _ -> "Expand"
+    | Target _ -> "Target"
+    | Hidden_targets _ -> "Hidden_targets"
+  in
+  if String.equal from "build_cm" then
+    Dune_util.Log.info [ Pp.textf "buildcmfrom%s\n" s ];
+
   match t with
   | A s -> Action_builder.With_targets.return [ s ]
   | As l -> Action_builder.With_targets.return l
   | Dep fn ->
     Action_builder.with_no_targets
-      (Action_builder.map (Action_builder.path fn) ~f:(fun () ->
-           [ Path.reach fn ~from:dir ]))
+      (Action_builder.map
+         (Action_builder.path ~from:(from ^ "Dep fn expand") fn)
+         ~f:(fun () -> [ Path.reach fn ~from:dir ]))
   | Path fn -> Action_builder.With_targets.return [ Path.reach fn ~from:dir ]
   | Deps (fns, m_name_list) ->
     Action_builder.with_no_targets
@@ -85,12 +106,10 @@ let rec expand :
   | S ts ->
     Action_builder.With_targets.map
       (Action_builder.With_targets.all
-         (List.map ts
-            ~f:(expand ~deps ~from:(from ^ "->rec_call_expand3") ~dir)))
+         (List.map ts ~f:(expand ~deps ~from ~dir)))
       ~f:List.concat
   | Concat (sep, ts) ->
-    Action_builder.With_targets.map
-      (expand ~deps ~from:(from ^ "->rec_call_expand2") ~dir (S ts))
+    Action_builder.With_targets.map (expand ~deps ~from ~dir (S ts))
       ~f:(fun x -> [ String.concat ~sep x ])
   | Target fn ->
     Action_builder.with_file_targets ~file_targets:[ fn ]
@@ -98,7 +117,7 @@ let rec expand :
   | Dyn dyn ->
     Action_builder.with_no_targets
       (Action_builder.bind dyn ~f:(fun t ->
-           expand_no_targets ~deps ~from:(from ^ "->rec_call_expand") ~dir t))
+           expand_no_targets ~deps ~from ~dir t))
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
     Action_builder.with_no_targets
@@ -112,13 +131,13 @@ and expand_no_targets
     ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
     ?(from = "unknown123") ~dir (t : without_targets t) =
   let { Action_builder.With_targets.build; targets } =
-    expand ~deps ~from:(from ^ "expand_no_targets") ~dir t
+    expand ~deps ~from ~dir t
   in
   assert (Targets.is_empty targets);
   build
 
 let dep_prog = function
-  | Ok p -> Action_builder.path p
+  | Ok p -> Action_builder.path ~from:"dep_prog" p
   | Error _ -> Action_builder.return ()
 
 let run ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
@@ -128,7 +147,7 @@ let run ?(deps = Action_builder.return [ ("", Action_builder.return [ "" ]) ])
   Action_builder.With_targets.add ~file_targets:(Option.to_list stdout_to)
     (let open Action_builder.With_targets.O in
     let+ () = Action_builder.with_no_targets (dep_prog prog)
-    and+ args = expand ~deps ~from:(from ^ "->run") ~dir (S args) in
+    and+ args = expand ~deps ~from ~dir (S args) in
     let action = Action.run prog args in
     let action =
       match stdout_to with

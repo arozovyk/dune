@@ -235,14 +235,20 @@ let extend_action t ~dir build =
        | Chdir _ as a -> a
        | a -> Chdir (Path.build (Env_tree.context t).build_dir, a))
 
-let make_rule t ?mode ?loc ~dir { Action_builder.With_targets.build; targets } =
+let make_rule ?(from = "unknown") t ?mode ?loc ~dir
+    { Action_builder.With_targets.build; targets } =
+  Dune_util.Log.info
+    [ Pp.textf "Super_context.make_rule from:%s  Path:%s\nTargets:%s\n" from
+        (Path.Build.to_string dir)
+        (Targets.to_dyn targets |> Dyn.to_string)
+    ];
   let build = extend_action t build ~dir in
   Rule.make ?mode ~info:(Rule.Info.of_loc_opt loc)
     ~context:(Some (Context.build_context (Env_tree.context t)))
     ~targets build
 
-let add_rule t ?mode ?loc ~dir build =
-  let rule = make_rule t ?mode ?loc ~dir build in
+let add_rule ?(from = "unknown") t ?mode ?loc ~dir build =
+  let rule = make_rule ~from:(from ^ "->add_rule") t ?mode ?loc ~dir build in
   Rules.Produce.rule rule
 
 let add_rule_get_targets t ?mode ?loc ~dir build =
@@ -251,7 +257,7 @@ let add_rule_get_targets t ?mode ?loc ~dir build =
   rule.targets
 
 let add_rules t ?loc ~dir builds =
-  Memo.parallel_iter builds ~f:(add_rule ?loc t ~dir)
+  Memo.parallel_iter builds ~f:(add_rule ~from:"add_rules" ?loc t ~dir)
 
 let add_alias_action t alias ~dir ~loc action =
   let build = extend_action t action ~dir in

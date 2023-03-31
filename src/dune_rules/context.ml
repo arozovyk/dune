@@ -939,6 +939,7 @@ let configurator_v2 t = Path.Build.relative (dot_dune_dir t) "configurator.v2"
    against configurator, however we currently don't support this kind of
    "runtime dependencies" so we just do it eagerly. *)
 let gen_configurator_rules t =
+
   let ocamlc = Path.to_absolute_filename t.ocamlc in
   let ocaml_config_vars = Ocaml_config.Vars.to_list t.ocaml_config_vars in
   let* () =
@@ -960,6 +961,7 @@ let gen_configurator_rules t =
               |> String.concat ~sep:""))))
   in
   let fn = configurator_v2 t in
+
   Rules.Produce.rule
     (Rule.make ~context:None ~targets:(Targets.File.create fn)
        (let open Action_builder.O in

@@ -101,6 +101,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Dir_contents.ocaml dir_contents
     >>| Ml_sources.modules_and_obj_dir ~for_:(Exe { first_exe })
   in
+
   let* () = Check_rules.add_obj_dir sctx ~obj_dir `Ocaml in
   let ctx = Super_context.context sctx in
   let project = Scope.project scope in
@@ -124,11 +125,12 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         Option.some_if (List.exists linkages ~f:Exe.Linkage.is_js) js_of_ocaml
       else Some js_of_ocaml
     in
-    Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
-      ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
-      ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
-      ~package:exes.package
+    Compilation_context.create ~from:"exerules" () ~loc:exes.buildable.loc
+      ~super_context:sctx ~expander ~scope ~obj_dir ~modules ~flags
+      ~requires_link ~requires_compile ~preprocessing:pp ~js_of_ocaml
+      ~opaque:Inherit_from_settings ~package:exes.package
   in
+
   let stdlib_dir = ctx.Context.stdlib_dir in
   let* requires_compile = Compilation_context.requires_compile cctx in
   let preprocess =
@@ -140,6 +142,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     (* Building an archive for foreign stubs, we link the corresponding object
        files directly to improve perf. *)
     let link_deps, sandbox = Dep_conf_eval.unnamed ~expander exes.link_deps in
+
     let link_args =
       let use_standard_cxx_flags =
         match Dune_project.use_standard_c_and_cxx_flags project with
@@ -186,19 +189,19 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     let* () =
       Check_rules.add_files sctx ~dir @@ Mode.Map.Multi.to_flat_list o_files
     in
-   (*  let _ofs, _ =
-      Mode.Map.fold_mapi ~init:"" o_files ~f:(fun _ b c ->
-          ( "-" ^ b ^ String.concat ~sep:"~" (List.map ~f:Path.to_string c)
-          , o_files ))
-    in
-    Dune_util.Log.info
-      [ Pp.textf "exe_rules ( , %s)"
-          (*  (Modules.to_dyn modules |> Dyn.to_string) *)
-          _ofs
-        (* (List.map ~f:Path.to_string
-              (Mode.Map.find_exn o_files Mode.Select.All)
-           |> String.concat ~sep:"-") *)
-      ]; *)
+    (* let _ofs, _ =
+         Mode.Map.fold_mapi ~init:"" o_files ~f:(fun _ b c ->
+             ( "-" ^ b ^ String.concat ~sep:"~" (List.map ~f:Path.to_string c)
+             , o_files ))
+       in
+       Dune_util.Log.info
+         [ Pp.textf "exe_rules ( , %s)"
+             (*  (Modules.to_dyn modules |> Dyn.to_string) *)
+             _ofs
+           (* (List.map ~f:Path.to_string
+                 (Mode.Map.find_exn o_files Mode.Select.All)
+              |> String.concat ~sep:"-") *)
+         ]; *)
     (* if Option.is_none ofs then
        Dune_util.Log.info
          [ Pp.textf "exe_rules (%s, --)"
@@ -237,8 +240,8 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         ~o_files ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
   in
   let+ () =
-    Memo.parallel_iter dep_graphs.for_exes
-      ~f:(Check_rules.add_cycle_check sctx ~dir)
+    Memo.parallel_iter dep_graphs.for_exes ~f:(fun x ->
+        Check_rules.add_cycle_check sctx ~dir x)
   in
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
@@ -272,6 +275,7 @@ let rules ~sctx ~dir ~dir_contents ~scope ~expander
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
       ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
   in
+  (* here *)
   let* () = Buildable_rules.gen_select_rules sctx compile_info ~dir
   and* () =
     let requires_link = Lib.Compile.requires_link compile_info in

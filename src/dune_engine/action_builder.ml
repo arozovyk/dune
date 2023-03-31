@@ -31,6 +31,7 @@ let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
             register_action_deps ~from:(from ^ "->dyn_memo_deps") ~external_deps
               mode deps
           in
+          Dune_util.Log.info [ Pp.textf "dyn_memo_deps from : %s" from ];
           (paths, deps))
     }
 
@@ -57,7 +58,7 @@ let dyn_deps ?((* ?(from = "unknown") *) external_deps = []) t =
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
-let path p = deps (Dep.Set.singleton (Dep.file p))
+let path ?(from = "unknown") p = deps ~from (Dep.Set.singleton (Dep.file p))
 
 let paths ?(from = "unkown") ?(external_deps = []) ps =
   deps ~from:(from ^ "->paths") ~external_deps (Dep.Set.of_files ps)

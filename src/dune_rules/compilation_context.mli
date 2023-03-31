@@ -21,7 +21,8 @@ type opaque =
 
 (** Create a compilation context. *)
 val create :
-     super_context:Super_context.t
+     ?from:string
+  -> super_context:Super_context.t
   -> scope:Scope.t
   -> expander:Expander.t
   -> obj_dir:Path.Build.t Obj_dir.t

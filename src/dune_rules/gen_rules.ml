@@ -210,9 +210,9 @@ let define_all_alias ~dir ~project ~js_targets =
 
 let gen_rules sctx dir_contents cctxs expander
     { Dune_file.dir = src_dir; stanzas; project } ~dir:ctx_dir =
-  Dune_util.Log.info
+(*   Dune_util.Log.info
     [ Pp.textf "gen_rules222  %s" (Path.Build.to_string ctx_dir) ];
-
+ *)
   let files_to_install install_conf =
     let expand_str = Expander.No_deps.expand_str expander in
     let files_and_dirs =

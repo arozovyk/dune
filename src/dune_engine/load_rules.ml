@@ -324,14 +324,20 @@ end = struct
   open Load_rules
 
   let create_copy_rules ~ctx_dir ~non_target_source_files =
-    Path.Source.Set.to_list_map non_target_source_files ~f:(fun path ->
-        let ctx_path = Path.Build.append_source ctx_dir path in
+    Path.Source.Set.to_list_map non_target_source_files ~f:(fun path' ->
+        let ctx_path = Path.Build.append_source ctx_dir path' in
         let build =
           Action_builder.of_thunk
             { f =
                 (fun mode ->
-                  let path = Path.source path in
+                  let path = Path.source path' in
                   let+ fact = eval_source_file mode path in
+                  Dune_util.Log.info
+                    [ Pp.textf "Load_rule.create_copy_rules %s\nPath:%s\n"
+                        (Path.Build.to_string ctx_dir)
+                        (Path.Source.to_string path')
+                    ];
+
                   ( Action.Full.make
                       (Action.copy path ctx_path)
                       (* There's an [assert false] in [prepare_managed_paths]
@@ -340,7 +346,7 @@ end = struct
                   , Dep.Map.singleton (Dep.file path) fact ))
             }
         in
-        Rule.make ~context:None ~info:(Source_file_copy path)
+        Rule.make ~context:None ~info:(Source_file_copy path')
           ~targets:(Targets.File.create ctx_path)
           build)
 
@@ -902,7 +908,7 @@ let get_rule_internal path =
   | External _ | Source _ -> assert false
   | Build { rules_here; _ } -> (
     (* Dune_util.Log.info
-      [ Pp.textf "get_rule_internal %s\n" (Path.Build.to_string path) ]; *)
+       [ Pp.textf "get_rule_internal %s\n" (Path.Build.to_string path) ]; *)
     match Path.Build.Map.find rules_here.by_file_targets path with
     | Some _ as rule -> Memo.return rule
     | None ->
