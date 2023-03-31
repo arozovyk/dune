@@ -24,6 +24,8 @@ module L : sig
 
   val to_string_list : t -> string list
 
+  val filter_by_name : t -> string -> t
+
   val to_iflags : Path.Set.t -> _ Command.Args.t
 
   val include_paths : ?project:Dune_project.t -> t -> Lib_mode.t -> Path.Set.t

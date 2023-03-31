@@ -100,6 +100,8 @@ let deps_of
   in
   let lines = Action_builder.lines_of (Path.build ocamldep_output) in
   let+ _ =
+    (* Dune_util.Log.info
+      [ Pp.textf "Dogg for %s" (Module.name unit |> Module_name.to_string) ]; *)
     let produce_all_deps =
       let open Action_builder.O in
       let transitive_deps modules =

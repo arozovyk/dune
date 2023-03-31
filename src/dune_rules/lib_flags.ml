@@ -85,6 +85,17 @@ let link_deps sctx t mode =
 module L = struct
   type nonrec t = Lib.t list
 
+  let filter_by_name (t : t) name =
+    List.filter t ~f:(fun lib ->
+        let lib_name =
+          Lib.name lib |> Lib_name.to_string |> String.capitalize
+        in
+        Dune_util.Log.info
+          [ Pp.textf "filter by name %s %s %b\n" lib_name name
+              (String.equal lib_name name)
+          ];
+        String.equal lib_name name)
+
   (* todo filter by actual *)
   let to_string_list (t : t) =
     List.map t ~f:(fun lib -> Lib.to_dyn lib |> Dyn.to_string)

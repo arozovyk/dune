@@ -245,7 +245,11 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   in
   let includ' =
     (* Filter this depending on module that is being compiled and ocamldepdependecies*)
-    let incls = Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind in
+    let incls =
+      Lib_mode.Cm_kind.Map.get
+        (CC.includes ~md:m ~mdeps:module_deps cctx)
+        cm_kind
+    in
     let rec _tostr acc (i : Command.Args.without_targets Command.Args.t) =
       let open Command.Args in
       let v =
@@ -269,10 +273,10 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
       v ^ acc
     in
     (* Dune_util.Log.info
-      [ Pp.textf "buildcm and includes for m %s are : %s"
-          (Module.name m |> Module_name.to_string)
-          (tostr "" incls)
-      ]; *)
+       [ Pp.textf "buildcm and includes for m %s are : %s"
+           (Module.name m |> Module_name.to_string)
+           (tostr "" incls)
+       ]; *)
     Command.Args.as_any incls
   in
   Super_context.add_rule ~from:"build_cm" sctx
@@ -397,7 +401,9 @@ let ocamlc_i ~(deps : Module_dep.t list Action_builder.t Ml_kind.Dict.t) cctx
              ; A "-I"
              ; Path (Path.build (Obj_dir.byte_dir obj_dir))
              ; Command.Args.as_any
-                 (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) (Ocaml Cmo))
+                 (Lib_mode.Cm_kind.Map.get
+                    (CC.includes ~md:m ~mdeps:(Action_builder.return []) cctx)
+                    (Ocaml Cmo))
              ; opens modules m
              ; A "-short-paths"
              ; A "-i"
