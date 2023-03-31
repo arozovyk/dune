@@ -5,10 +5,11 @@ module Includes = struct
 
   let make ?dep_graphs ?(from = "unknown") () ~project ~opaque ~requires ~md
       ~mdeps =
+    let patched = false in
     let res =
       let _ = mdeps in
       let open Lib_mode.Cm_kind.Map in
-      let mname = Module.name md |> Module_name.to_string in
+      let _mname = Module.name md |> Module_name.to_string in
       let open Resolve.Memo.O in
       let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
       let make_includes_args ~mode groups =
@@ -45,25 +46,27 @@ module Includes = struct
                     (filtered, a))
               in
               let l1 = fst filtered in
-              Dune_util.Log.info
-                [ Pp.textf
-                    "Making context for module %s\n\
-                    \ libs are %s\n\
-                    \ libs atref are %s\n\
-                     abrakadabra deps is %s\n\
-                    \ " mname
-                    (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-                    (Lib_flags.L.to_string_list l1 |> String.concat ~sep:",")
-                    (external_dep_names |> String.concat ~sep:",")
-                ];
+              (* Dune_util.Log.info
+                 [ Pp.textf
+                     "Making context for module %s\n\
+                     \ libs are %s\n\
+                     \ libs atref are %s\n\
+                      abrakadabra deps is %s\n\
+                     \ " mname
+                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+                     (Lib_flags.L.to_string_list l1 |> String.concat ~sep:",")
+                     (external_dep_names |> String.concat ~sep:",")
+                 ]; *)
               (* Dune_util.Log.info
                  [ Pp.textf "Includes.make cmi_includes libs are %s \n "
                      (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
                  ]; *)
+              let lib_list = if patched then l1 else libs in
               Command.Args.S
-                [ iflags libs mode
+                [ iflags lib_list mode
                 ; Hidden_deps
-                    (Lib_file_deps.deps ~from:"make_includes_args " libs ~groups)
+                    (Lib_file_deps.deps ~from:"make_includes_args " lib_list
+                       ~groups)
                 ]))
       in
       let cmi_includes = make_includes_args ~mode:(Ocaml Byte) [ Ocaml Cmi ] in
@@ -71,24 +74,63 @@ module Includes = struct
         Command.Args.memo
           ~from:(from ^ "->complilation_context.includes.make")
           (Resolve.Memo.args
-             (let+ libs = requires in
+             (let r =
+                match dep_graphs with
+                | Some (dep_graphs : Dep_graph.t Ml_kind.Dict.t) ->
+                  let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
 
+                  let module_deps = Dep_graph.deps_of dep_graph md in
+
+                  let a = Action_builder.run module_deps Action_builder.Eager in
+                  let rrr = Resolve.Memo.lift_memo a in
+                  rrr
+                | None -> Resolve.Memo.return ([], Dep.Map.empty)
+              in
+              let* libs = requires in
+              let+ abra, _ = r in
+              let external_dep_names =
+                List.filter_map ~f:Module_dep.filter_external abra
+                |> List.map ~f:Module_dep.External_name.to_string
+              in
+              let external_dep_names =
+                if List.is_empty external_dep_names then [ "" ]
+                else external_dep_names
+              in
+              let filtered =
+                List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
+                    let filtered = Lib_flags.L.filter_by_name b a in
+                    (filtered, a))
+              in
+              let l1 = fst filtered in
+              (* Dune_util.Log.info
+                 [ Pp.textf
+                     "Making context for module %s\n\
+                     \ libs are %s\n\
+                     \ libs atref are %s\n\
+                      abrakadabra deps is %s\n\
+                     \ " mname
+                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+                     (Lib_flags.L.to_string_list l1 |> String.concat ~sep:",")
+                     (external_dep_names |> String.concat ~sep:",")
+                 ]; *)
               (* Dune_util.Log.info
                  [ Pp.textf "Includes.make cmx_includes libs are %s \n "
                      (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
                  ]; *)
+              let lib_list = if patched then l1 else libs in
+
               Command.Args.S
-                [ iflags libs (Ocaml Native)
+                [ iflags lib_list (Ocaml Native)
                 ; Hidden_deps
                     (if opaque then
-                     List.map libs ~f:(fun lib ->
+                     List.map lib_list ~f:(fun lib ->
                          ( lib
                          , if Lib.is_local lib then
                              [ Lib_file_deps.Group.Ocaml Cmi ]
                            else [ Ocaml Cmi; Ocaml Cmx ] ))
                      |> Lib_file_deps.deps_with_exts
                     else
-                      Lib_file_deps.deps ~from:"cmx_includes " libs
+                      Lib_file_deps.deps ~from:"cmx_includes " lib_list
                         ~groups:[ Lib_file_deps.Group.Ocaml Cmi; Ocaml Cmx ])
                 ]))
       in

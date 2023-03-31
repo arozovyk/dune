@@ -90,10 +90,6 @@ module L = struct
         let lib_name =
           Lib.name lib |> Lib_name.to_string |> String.capitalize
         in
-        Dune_util.Log.info
-          [ Pp.textf "filter by name %s %s %b\n" lib_name name
-              (String.equal lib_name name)
-          ];
         String.equal lib_name name)
 
   (* todo filter by actual *)

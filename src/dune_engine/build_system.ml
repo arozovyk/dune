@@ -561,7 +561,7 @@ end = struct
         ; action
         ; info = _
         ; loc
-        ; external_deps
+        ; external_deps =_
         } =
       rule
     in
@@ -602,16 +602,6 @@ end = struct
                false
              | _ -> true)
        in *)
-    if
-      Targets.Validated.head targets
-      |> Path.Build.to_string
-      = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
-    then
-      Dune_util.Log.info
-        [ Pp.textf "extgernal deps  %s"
-            (List.fold_left ~init:"" ~f:(fun x y -> x ^ y) external_deps)
-        ]
-    else ();
 
     (* Dune_util.Log.info
        [ Pp.textf "extgernal deps %s for %s "
@@ -690,6 +680,16 @@ end = struct
           compute_rule_digest rule ~deps ~action ~sandbox_mode
             ~execution_parameters
         in
+        if
+          Targets.Validated.head targets
+          |> Path.Build.to_string
+          = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
+        then
+          Dune_util.Log.info
+            [ Pp.textf "Rule digest for Main_a is  %s"
+                (Digest.to_string rule_digest)
+            ]
+        else ();
         (* CR-someday amokhov: Add support for rules with directory targets. *)
         let can_go_in_shared_cache =
           action.can_go_in_shared_cache
@@ -1062,7 +1062,6 @@ end = struct
       let dir = File_selector.dir g in
       Load_rules.load_dir ~dir >>= function
       | External _ | Source _ | Build _ ->
-        Dune_util.Log.info [ Pp.textf "TODO" ];
         let* paths = Pred.eval g in
         let+ files =
           Memo.parallel_map (Path.Set.to_list paths) ~f:(fun p ->
@@ -1089,7 +1088,7 @@ end = struct
     let eval_impl ?(from = "unknown") g =
       let _ = from in
       let dir = File_selector.dir g in
-(*       Dune_util.Log.info [ Pp.textf "TODO2" ];
+      (*       Dune_util.Log.info [ Pp.textf "TODO2" ];
  *)
       Load_rules.load_dir ~dir >>= function
       | Source { files } ->
@@ -1216,8 +1215,6 @@ let build_pred = Pred.build
    the results of both [Action_builder.static_deps] and [Action_builder.exec]
    are cached. *)
 let file_exists fn =
-  Dune_util.Log.info [ Pp.textf "TODO4" ];
-
   Load_rules.load_dir ~dir:(Path.parent_exn fn) >>= function
   | Source { files } ->
     Memo.return

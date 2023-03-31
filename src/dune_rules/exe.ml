@@ -144,9 +144,6 @@ let link_exe ?(from = "unknown") ~loc ~name ~(linkage : Linkage.t) ~cm_files
   let dep_graph = Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) Impl in
   let module_deps = Dep_graph.deps_of dep_graph unit in
 
-  Dune_util.Log.info
-    [ Pp.textf "Link_exe for  %s\n " (Module.name unit |> Module_name.to_string)
-    ];
   let open Memo.O in
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
