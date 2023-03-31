@@ -56,6 +56,8 @@ let all_direct_targets dir =
   Memo.parallel_map (Context_name.Map.values contexts) ~f:(fun ctx ->
       Source_tree_map_reduce.map_reduce root ~traverse:Sub_dirs.Status.Set.all
         ~f:(fun dir ->
+          Dune_util.Log.info [ Pp.textf "TODO3" ];
+
           Dune_engine.Load_rules.load_dir
             ~dir:
               (Path.build

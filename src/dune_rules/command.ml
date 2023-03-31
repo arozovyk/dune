@@ -121,7 +121,9 @@ let rec expand :
   | Fail f -> Action_builder.with_no_targets (Action_builder.fail f)
   | Hidden_deps deps ->
     Action_builder.with_no_targets
-      (Action_builder.map (Action_builder.deps deps) ~f:(fun () -> []))
+      (Action_builder.map
+         (Action_builder.deps ~from:(from ^ "->expand|Hiddendeps") deps)
+         ~f:(fun () -> []))
   | Hidden_targets fns ->
     Action_builder.with_file_targets ~file_targets:fns
       (Action_builder.return [])
@@ -174,11 +176,11 @@ let fail e = Fail { fail = (fun _ -> raise e) }
 module Args = struct
   include Args0
 
-  let memo t =
+  let memo ?(from = "unknown") t =
     let memo =
       Action_builder.create_memo "Command.Args.memo"
         ~input:(module Path)
-        (fun dir -> expand_no_targets ~from:"memo" ~dir t)
+        (fun dir -> expand_no_targets ~from:(from ^ "->memo") ~dir t)
     in
     Expand (fun ~dir -> Action_builder.exec_memo memo dir)
 end

@@ -3,11 +3,13 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let make ~project ~opaque ~requires : _ Lib_mode.Cm_kind.Map.t =
+  let make ?(from = "unknown") () ~project ~opaque ~requires :
+      _ Lib_mode.Cm_kind.Map.t =
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let make_includes_args ~mode groups =
       Command.Args.memo
+        ~from:(from ^ "->complilation_context.includes.make.make_includes_args")
         (Resolve.Memo.args
            (let+ libs = requires in
             Command.Args.S
@@ -19,6 +21,7 @@ module Includes = struct
     let cmi_includes = make_includes_args ~mode:(Ocaml Byte) [ Ocaml Cmi ] in
     let cmx_includes =
       Command.Args.memo
+        ~from:(from ^ "->complilation_context.includes.make")
         (Resolve.Memo.args
            (let+ libs = requires in
             Command.Args.S
@@ -141,10 +144,10 @@ let ocamldep_modules_data t = t.ocamldep_modules_data
 
 let dep_graphs t = t.modules.dep_graphs
 
-let create ?(from="unkn") ~super_context ~scope ~expander ~obj_dir ~modules ~flags
-    ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
-    ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
-    () =
+let create ?(from = "unkn") ~super_context ~scope ~expander ~obj_dir ~modules
+    ~flags ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy)
+    ~opaque ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes
+    ?bin_annot ?loc () =
   let open Memo.O in
   let project = Scope.project scope in
   let requires_compile =
@@ -196,7 +199,9 @@ let create ?(from="unkn") ~super_context ~scope ~expander ~obj_dir ~modules ~fla
   ; flags
   ; requires_compile
   ; requires_link
-  ; includes = Includes.make ~project ~opaque ~requires:requires_compile
+  ; includes =
+      Includes.make ~from:(from^"->compliation_context_create") ~project ~opaque
+        ~requires:requires_compile ()
   ; preprocessing
   ; opaque
   ; stdlib
@@ -271,7 +276,8 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   in
   let modules = singleton_modules module_ in
   let includes =
-    Includes.make ~project:(Scope.project cctx.scope) ~opaque ~requires
+    Includes.make ~from:"for_module_generated_at_link_time"
+      ~project:(Scope.project cctx.scope) ~opaque ~requires ()
   in
   { cctx with
     opaque

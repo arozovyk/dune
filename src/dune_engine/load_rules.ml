@@ -382,6 +382,8 @@ end = struct
     { Loaded.by_file_targets; by_directory_targets }
 
   let lookup_alias alias =
+    Dune_util.Log.info [ Pp.textf "TODO6" ];
+
     load_dir ~dir:(Path.build (Alias.dir alias)) >>| function
     | Source _ | External _ ->
       Code_error.raise "Alias in a non-build dir"
@@ -493,6 +495,8 @@ end = struct
       else
         Restricted
           (Memo.Lazy.create ~name:"allowed_dirs" (fun () ->
+               Dune_util.Log.info [ Pp.textf "TODO7" ];
+
                load_dir ~dir:(Path.build dir) >>| function
                | External _ | Source _ -> Dir_set.just_the_root
                | Build { allowed_subdirs; _ } ->
@@ -588,7 +592,8 @@ end = struct
     | Normal of Normal.t
 
   module rec Gen_rules : sig
-    val gen_rules : Dir_triage.Build_directory.t -> gen_rules_result Memo.t
+    val gen_rules :
+      ?from:string -> Dir_triage.Build_directory.t -> gen_rules_result Memo.t
   end = struct
     let combine_gen_rules_result ~parent ~child =
       match parent with
@@ -599,13 +604,16 @@ end = struct
           ]
       | Normal r -> Normal (Normal.combine_exn r child)
 
-    let call_rules_generator
+    let call_rules_generator ?(from = "unknown")
         ({ Dir_triage.Build_directory.dir; context_or_install; sub_dir } as d) =
       let (module RG : Build_config.Rule_generator) =
         (Build_config.get ()).rule_generator
       in
       let sub_dir_components = Path.Source.explode sub_dir in
-      RG.gen_rules context_or_install ~dir sub_dir_components >>= function
+      RG.gen_rules
+        ~from:(from ^ "Load_rules.Gen_rules.call_rules_generator")
+        context_or_install ~dir sub_dir_components
+      >>= function
       | Rules rules ->
         Memo.return @@ Normal (Normal.make_rules_gen_result ~of_:dir rules)
       | Unknown_context_or_install ->
@@ -622,12 +630,14 @@ end = struct
             ]
         | Some parent ->
           let child = Normal.make_rules_gen_result ~of_:dir child in
-          let+ parent = Gen_rules.gen_rules parent in
+          let+ parent =
+            Gen_rules.gen_rules ~from:(from ^ "call_rules_generator 629") parent
+          in
           combine_gen_rules_result ~parent ~child)
 
-    let gen_rules_impl d =
+    let gen_rules_impl ?(from = "unknw") d =
       match Dir_triage.Build_directory.parent d with
-      | None -> call_rules_generator d
+      | None -> call_rules_generator ~from:"gen_rules_impl 630 " d
       | Some d' -> (
         Gen_rules.gen_rules d' >>= function
         | Under_directory_target _ as res -> Memo.return res
@@ -635,13 +645,14 @@ end = struct
           if Path.Build.Map.mem rules.directory_targets d.dir then
             Memo.return
               (Under_directory_target { directory_target_ancestor = d.dir })
-          else call_rules_generator d)
+          else call_rules_generator ~from:(from ^ "->gen_rules_impl 638 ") d)
 
-    let gen_rules =
+    let gen_rules ?(from = "unkwnon") =
       let memo =
         Memo.create
           ~input:(module Dir_triage.Build_directory)
-          "gen-rules" gen_rules_impl
+          "gen-rules"
+          (gen_rules_impl ~from:(from ^ "->gen_rules 644"))
       in
       fun x -> Memo.exec memo x
   end
@@ -654,14 +665,15 @@ end = struct
           target_name
       ]
 
-  let load_build_directory_exn
+  let load_build_directory_exn ?(from = "unknwon")
       ({ Dir_triage.Build_directory.dir; context_or_install; sub_dir } as
       build_dir) =
     (* Load all the rules *)
     let (module RG : Build_config.Rule_generator) =
       (Build_config.get ()).rule_generator
     in
-    Gen_rules.gen_rules build_dir >>= function
+    Gen_rules.gen_rules ~from:(from ^ "load_build_directory_exn") build_dir
+    >>= function
     | Under_directory_target { directory_target_ancestor } ->
       Memo.return
         (Loaded.Build_under_directory_target { directory_target_ancestor })
@@ -880,7 +892,7 @@ end = struct
            [ Pp.textf "Loading build directory %s" (Path.to_string dir) ]);
     get_dir_triage ~dir >>= function
     | Known l -> Memo.return l
-    | Build_directory x -> load_build_directory_exn x
+    | Build_directory x -> load_build_directory_exn ~from:"->load_dir_impl" x
 
   let load_dir =
     let load_dir_impl dir = load_dir_impl ~dir in
@@ -894,7 +906,7 @@ end = struct
       get_dir_triage ~dir >>= function
       | Known _ -> Memo.return false
       | Build_directory d -> (
-        Gen_rules.gen_rules d >>| function
+        Gen_rules.gen_rules ~from:"is_under_directory_target902" d >>| function
         | Under_directory_target _ -> true
         | Normal { directory_targets; _ } ->
           Path.Build.Map.mem directory_targets (Path.as_in_build_dir_exn p)))

@@ -315,7 +315,7 @@ end = struct
       let+ digests = Pred.build g in
       (* Fact: file selector [g] expands to the set of file- and (possibly)
          dir-digest pairs [digests] *)
-      Dep.Fact.file_selector g digests
+      Dep.Fact.file_selector ~from:(from ^ "->build_dep") g digests
     | Universe | Env _ ->
       (* Facts about these dependencies are constructed in
          [Dep.Facts.digest]. *)
@@ -1062,6 +1062,7 @@ end = struct
       let dir = File_selector.dir g in
       Load_rules.load_dir ~dir >>= function
       | External _ | Source _ | Build _ ->
+        Dune_util.Log.info [ Pp.textf "TODO" ];
         let* paths = Pred.eval g in
         let+ files =
           Memo.parallel_map (Path.Set.to_list paths) ~f:(fun p ->
@@ -1085,8 +1086,10 @@ end = struct
         let dirs = Path.Map.singleton dir digest in
         Memo.return (Dep.Fact.Files.make ~files ~dirs)
 
-    let eval_impl g =
+    let eval_impl ?(from = "unknown") g =
       let dir = File_selector.dir g in
+      Dune_util.Log.info [ Pp.textf "TODO2" ];
+
       Load_rules.load_dir ~dir >>= function
       | Source { files } ->
         Path.set_of_source_paths files
@@ -1097,6 +1100,11 @@ end = struct
         |> Path.Set.filter ~f:(File_selector.test g)
         |> Memo.return
       | Build { rules_here; _ } ->
+        Dune_util.Log.info
+          [ Pp.textf "in TODO2 from %s fs %s " from
+              (File_selector.to_dyn g |> Dyn.to_string)
+          ];
+
         let only_generated_files = File_selector.only_generated_files g in
         (* We look only at [by_file_targets] because [File_selector] does not
            match directories. *)
@@ -1115,7 +1123,7 @@ end = struct
         let+ fact = Pred.build g in
         Dep.Fact.Files.paths fact |> Path.Set.of_keys
 
-    let eval_memo =
+    let eval_memo ?(from = "unknown") () =
       Memo.create "eval-pred"
         ~human_readable_description:(fun glob ->
           Pp.concat
@@ -1123,9 +1131,10 @@ end = struct
                 (Path.to_string_maybe_quoted (File_selector.dir glob))
             ])
         ~input:(module File_selector)
-        ~cutoff:Path.Set.equal eval_impl
+        ~cutoff:Path.Set.equal
+        (eval_impl ~from:(from^"->eval_memo"))
 
-    let eval = Memo.exec eval_memo
+    let eval = Memo.exec (eval_memo ())
 
     let build =
       Memo.exec
@@ -1207,6 +1216,8 @@ let build_pred = Pred.build
    the results of both [Action_builder.static_deps] and [Action_builder.exec]
    are cached. *)
 let file_exists fn =
+  Dune_util.Log.info [ Pp.textf "TODO4" ];
+
   Load_rules.load_dir ~dir:(Path.parent_exn fn) >>= function
   | Source { files } ->
     Memo.return

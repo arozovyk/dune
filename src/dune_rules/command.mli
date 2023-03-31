@@ -70,7 +70,7 @@ module Args : sig
       expression. Use this function when the same subexpression appears in
       multiple [Command.Args.t] expressions to share both the time and memory
       required for the computation. *)
-  val memo : without_targets t -> _ t
+  val memo : ?from:string -> without_targets t -> _ t
 
   val as_any : without_targets t -> any t
 end

@@ -209,8 +209,11 @@ module Fact = struct
 
   let file fn digest = File (fn, digest)
 
-  let file_selector fs files =
+  let file_selector ?(from = "unknown") fs files =
     let id = File_selector.to_dyn fs in
+    Dune_util.Log.info
+      [ Pp.textf "Making a file selector id%s from %s" (Dyn.to_string id) from ];
+
     File_selector (id, files)
 
   let alias _alias files = Alias files
