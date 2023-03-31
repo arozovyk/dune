@@ -22,6 +22,8 @@ let register_action_deps :
   | Lazy -> Memo.return deps
 
 let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
+  Dune_util.Log.info [ Pp.textf "dyn_memo_deps_outside from : %s" from ];
+
   of_thunk
     { f =
         (fun mode ->
