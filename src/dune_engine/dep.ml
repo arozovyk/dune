@@ -212,7 +212,7 @@ module Fact = struct
   let file_selector ?(from = "unknown") fs files =
     let id = File_selector.to_dyn fs in
     Dune_util.Log.info
-      [ Pp.textf "Making a file selector id%s from %s" (Dyn.to_string id) from ];
+      [ Pp.textf "Making a file selector id%s from %s\n" (Dyn.to_string id) from ];
 
     File_selector (id, files)
 

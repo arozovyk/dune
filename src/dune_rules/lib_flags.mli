@@ -22,6 +22,8 @@ end
 module L : sig
   type nonrec t = Lib.t list
 
+  val to_string_list : t -> string list
+
   val to_iflags : Path.Set.t -> _ Command.Args.t
 
   val include_paths : ?project:Dune_project.t -> t -> Lib_mode.t -> Path.Set.t

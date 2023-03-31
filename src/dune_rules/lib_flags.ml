@@ -85,6 +85,10 @@ let link_deps sctx t mode =
 module L = struct
   type nonrec t = Lib.t list
 
+  (* todo filter by actual *)
+  let to_string_list (t : t) =
+    List.map t ~f:(fun lib -> Lib.to_dyn lib |> Dyn.to_string)
+
   let to_iflags dirs =
     Command.Args.S
       (Path.Set.fold dirs ~init:[] ~f:(fun dir acc ->

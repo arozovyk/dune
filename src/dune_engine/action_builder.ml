@@ -22,11 +22,11 @@ let register_action_deps :
   | Lazy -> Memo.return deps
 
 let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
-  Dune_util.Log.info [ Pp.textf "dyn_memo_deps_outside from : %s" from ];
-  let test =
+(*   Dune_util.Log.info [ Pp.textf "dyn_memo_deps_outside from : %s" from ];
+ *)  let test =
     Memo.bind deps ~f:(fun (_x, _) ->
-        Dune_util.Log.info [ Pp.textf "bra from : %s" from ];
-        Memo.return _x)
+(*         Dune_util.Log.info [ Pp.textf "bra from : %s" from ];
+ *)        Memo.return _x)
   in
 
   let oft =
@@ -37,7 +37,7 @@ let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
             let* deps2, paths = deps in
             let* _deps' = test in
 
-            let dep_s dep =
+           (*  let dep_s dep =
               let open Dep in
               match dep with
               | Env s -> "Env" ^ s
@@ -46,17 +46,17 @@ let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
               | File_selector (* of File_selector.t *) d ->
                 "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
               | Universe -> "Universe"
-            in
+            in *)
             let+ deps =
               register_action_deps ~from:(from ^ "->dyn_memo_deps")
                 ~external_deps mode deps2
             in
-            let is_dep_fact_t x = Obj.tag (Obj.repr x) in
+            (* let is_dep_fact_t x = Obj.tag (Obj.repr x) in
 
             let reg_deps = Dep.Map.keys deps in
-            let reg_depsv = Dep.Map.values deps in
+            let reg_depsv = Dep.Map.values deps in *)
 
-            Dune_util.Log.info
+           (*  Dune_util.Log.info
               [ Pp.textf
                   "dyn_memo_deps_inside from : %s\n\n\
                    dep arg   -> %s\n\
@@ -68,7 +68,7 @@ let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
                   (List.map reg_depsv ~f:(fun x ->
                        is_dep_fact_t x |> Int.to_string)
                   |> String.concat ~sep:",")
-              ];
+              ]; *)
 
             (paths, deps))
       }

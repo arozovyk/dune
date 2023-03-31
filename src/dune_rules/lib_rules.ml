@@ -480,7 +480,7 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
     | Public p -> Some (Public_lib.name p)
     | Private _ -> None
   in
-  Compilation_context.create ~from:"librules" () ~super_context:sctx ~expander
+  Compilation_context.create ~from:"Lib_rules.Compilation_context.create" () ~super_context:sctx ~expander
     ~scope ~obj_dir ~modules ~flags ~requires_compile ~requires_link
     ~preprocessing:pp ~opaque:Inherit_from_settings
     ~js_of_ocaml:(Some js_of_ocaml) ?stdlib:lib.stdlib ~package ?vimpl

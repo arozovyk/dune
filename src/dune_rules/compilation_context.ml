@@ -12,6 +12,10 @@ module Includes = struct
         ~from:(from ^ "->complilation_context.includes.make.make_includes_args")
         (Resolve.Memo.args
            (let+ libs = requires in
+            Dune_util.Log.info
+              [ Pp.textf "Includes.make cmi_includes libs are %s \n "
+                  (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+              ];
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps
@@ -24,6 +28,10 @@ module Includes = struct
         ~from:(from ^ "->complilation_context.includes.make")
         (Resolve.Memo.args
            (let+ libs = requires in
+            Dune_util.Log.info
+              [ Pp.textf "Includes.make cmx_includes libs are %s \n "
+                  (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
+              ];
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -200,8 +208,9 @@ let create ?(from = "unkn") ~super_context ~scope ~expander ~obj_dir ~modules
   ; requires_compile
   ; requires_link
   ; includes =
-      Includes.make ~from:(from^"->compliation_context_create") ~project ~opaque
-        ~requires:requires_compile ()
+      Includes.make
+        ~from:(from ^ "->compliation_context_create")
+        ~project ~opaque ~requires:requires_compile ()
   ; preprocessing
   ; opaque
   ; stdlib

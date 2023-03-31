@@ -76,7 +76,7 @@ let rec expand :
     | Hidden_targets _ -> "Hidden_targets"
   in
   if String.equal from "build_cm" then
-    Dune_util.Log.info [ Pp.textf "buildcmfrom%s\n" s ];
+    Dune_util.Log.info [ Pp.textf "buildcmfrom %s %s\n" from s ];
 
   match t with
   | A s -> Action_builder.With_targets.return [ s ]
@@ -106,7 +106,11 @@ let rec expand :
   | S ts ->
     Action_builder.With_targets.map
       (Action_builder.With_targets.all
-         (List.map ts ~f:(expand ~deps ~from ~dir)))
+         (List.map ts
+            ~f:
+              (expand ~deps
+                 ~from:(from ^ "iter S ~>" ^ (List.length ts |> Int.to_string))
+                 ~dir)))
       ~f:List.concat
   | Concat (sep, ts) ->
     Action_builder.With_targets.map (expand ~deps ~from ~dir (S ts))
@@ -122,7 +126,12 @@ let rec expand :
   | Hidden_deps deps ->
     Action_builder.with_no_targets
       (Action_builder.map
-         (Action_builder.deps ~from:(from ^ "->expand|Hiddendeps") deps)
+         (Action_builder.deps
+            ~from:
+              (from
+              ^ Printf.sprintf "->expand|Hiddendeps in  Dep.set is %s \n - "
+                  (Dep.Set.to_dyn deps |> Dyn.to_string))
+            deps)
          ~f:(fun () -> []))
   | Hidden_targets fns ->
     Action_builder.with_file_targets ~file_targets:fns

@@ -243,6 +243,38 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     |> List.concat_map ~f:(fun p ->
            [ Command.Args.A "-I"; Path (Path.build p) ])
   in
+  let includ' =
+    (* Filter this depending on module that is being compiled and ocamldepdependecies*)
+    let incls = Lib_mode.Cm_kind.Map.get (CC.includes cctx) cm_kind in
+    let rec tostr acc (i : Command.Args.without_targets Command.Args.t) =
+      let open Command.Args in
+      let v =
+        match i with
+        | A s -> "A   " ^ s
+        | As s -> " As  " ^ String.concat ~sep:"," s
+        | S lst ->
+          "S :l"
+          ^ (List.length lst |> Int.to_string)
+          ^ (List.map lst ~f:(fun x -> tostr acc x) |> String.concat ~sep:",")
+        | Concat _ -> "Concat"
+        | Dep p -> " Dep  " ^ Path.to_string p
+        | Deps _ -> "  Deps "
+        | Path _ -> " Path  "
+        | Paths _ -> "Paths"
+        | Hidden_deps _ -> "Hidden_deps"
+        | Dyn _ -> "Dyn"
+        | Fail _ -> "Fail"
+        | Expand _ -> "Expand"
+      in
+      v ^ acc
+    in
+    Dune_util.Log.info
+      [ Pp.textf "buildcm and includes for m %s are : %s"
+          (Module.name m |> Module_name.to_string)
+          (tostr "" incls)
+      ];
+    Command.Args.as_any incls
+  in
   Super_context.add_rule ~from:"build_cm" sctx
     ~dir:
       (let dune_version =
@@ -265,8 +297,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
           [ Command.Args.dyn flags
           ; cmt_args
           ; Command.Args.S obj_dirs
-          ; Command.Args.as_any
-              (Lib_mode.Cm_kind.Map.get (CC.includes cctx) cm_kind)
+          ; includ'
           ; As extra_args
           ; S (melange_args cctx cm_kind m)
           ; A "-no-alias-deps"
