@@ -204,7 +204,6 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ; stdlib
     }
   in
-
   let+ dep_graphs = Dep_rules.rules ocamldep_modules_data
   and+ bin_annot =
     match bin_annot with
@@ -214,7 +213,6 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   let includes =
     Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
   in
-
   { super_context
   ; scope
   ; expander

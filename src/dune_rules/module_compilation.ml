@@ -243,11 +243,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     |> List.concat_map ~f:(fun p ->
            [ Command.Args.A "-I"; Path (Path.build p) ])
   in
-  let includ' =
-    (* Filter this depending on module that is being compiled and ocamldep dependecies*)
-    let incls = Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind in
-    Command.Args.as_any incls
-  in
+
   Super_context.add_rule sctx
     ~dir:
       (let dune_version =
@@ -264,7 +260,8 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
           [ Command.Args.dyn flags
           ; cmt_args
           ; Command.Args.S obj_dirs
-          ; includ'
+          ; Command.Args.as_any
+              (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind)
           ; As extra_args
           ; S (melange_args cctx cm_kind m)
           ; A "-no-alias-deps"
@@ -331,8 +328,7 @@ let build_module ?(force_write_cmi = false) ?(precompiled_cmi = false) cctx m =
       Memo.when_ (not precompiled_cmi) (fun () ->
           build_cm ~cm_kind:(Melange Cmi) ~phase:None))
 
-let ocamlc_i ~(deps : Module_dep.t list Action_builder.t Ml_kind.Dict.t) cctx
-    (m : Module.t) ~output =
+let ocamlc_i ~deps cctx (m : Module.t) ~output =
   let sctx = CC.super_context cctx in
   let obj_dir = CC.obj_dir cctx in
   let dir = CC.dir cctx in
