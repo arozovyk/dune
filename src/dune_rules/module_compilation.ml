@@ -22,25 +22,20 @@ let opens modules m =
       (List.map modules ~f:(fun name ->
            Command.Args.As [ "-open"; Module_name.to_string name ]))
 
-let other_cm_files ~opaque ~cm_kind ~obj_dir = function
-  | l ->
-    List.filter_map ~f:Module_dep.filter_local l
-    |> List.concat_map ~f:(fun m ->
-           let cmi_kind = Lib_mode.Cm_kind.cmi cm_kind in
-           let deps =
-             [ Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind)
-             ]
-           in
-           if Module.has m ~ml_kind:Impl && cm_kind = Ocaml Cmx && not opaque
-           then
-             let cmx = Obj_dir.Module.cm_file_exn obj_dir m ~kind:(Ocaml Cmx) in
-             Path.build cmx :: deps
-           else if Module.has m ~ml_kind:Impl && cm_kind = Melange Cmj then
-             let cmj =
-               Obj_dir.Module.cm_file_exn obj_dir m ~kind:(Melange Cmj)
-             in
-             Path.build cmj :: deps
-           else deps)
+let other_cm_files ~opaque ~cm_kind ~obj_dir l =
+  List.filter_map ~f:Module_dep.filter_local l
+  |> List.concat_map ~f:(fun m ->
+         let cmi_kind = Lib_mode.Cm_kind.cmi cm_kind in
+         let deps =
+           [ Path.build (Obj_dir.Module.cm_file_exn obj_dir m ~kind:cmi_kind) ]
+         in
+         if Module.has m ~ml_kind:Impl && cm_kind = Ocaml Cmx && not opaque then
+           let cmx = Obj_dir.Module.cm_file_exn obj_dir m ~kind:(Ocaml Cmx) in
+           Path.build cmx :: deps
+         else if Module.has m ~ml_kind:Impl && cm_kind = Melange Cmj then
+           let cmj = Obj_dir.Module.cm_file_exn obj_dir m ~kind:(Melange Cmj) in
+           Path.build cmj :: deps
+         else deps)
 
 let copy_interface ~sctx ~dir ~obj_dir ~cm_kind m =
   (* symlink the .cmi into the public interface directory *)
