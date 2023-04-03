@@ -561,7 +561,7 @@ end = struct
         ; action
         ; info = _
         ; loc
-        ; external_deps =_
+        ; external_deps = _
         } =
       rule
     in
@@ -589,12 +589,11 @@ end = struct
     (* let deps =
          Dep.Map.filteri deps ~f:(fun a _ ->
              match a with
-             | Dep.File_selector fs
-               when not
-                      (List.exists
-                         ~f:(fun external_dep ->
-                           String.equal (File_selector.name fs) external_dep)
-                         external_deps) ->
+             | Dep.File_selector _
+               when Targets.Validated.head targets
+                    |> Path.Build.to_string
+                    = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
+               ->
                Dune_util.Log.info
                  [ Pp.textf "Removing file selector of  %s "
                      (Targets.Validated.head targets |> Path.Build.to_string)
@@ -609,10 +608,8 @@ end = struct
            (Targets.Validated.to_dyn targets |> Dyn.to_string)
        ]; *)
     (* _debug_dep_facts deps
-       (* ("target123 : " ^ "from2 ~ " ^ from *)
-       ("odep:--~~->"
-       ^ ((List.length external_deps |> Int.to_string) ^ "\n")
-       ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
+      (* ("target123 : " ^ "from2 ~ " ^ from *)
+      ("odep:--~~->" ^ (Targets.Validated.to_dyn targets |> Dyn.to_string)); *)
 
     (* Dune_util.Log.info
        [ Pp.textf "Size of odeplist  %d \n<---\n here it is:\n %s \n\n --->"

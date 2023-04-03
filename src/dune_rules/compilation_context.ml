@@ -5,7 +5,7 @@ module Includes = struct
 
   let make ?dep_graphs ?(from = "unknown") () ~project ~opaque ~requires ~md
       ~mdeps =
-    let patched = false in
+    let patched = true in
     let res =
       let _ = mdeps in
       let open Lib_mode.Cm_kind.Map in
