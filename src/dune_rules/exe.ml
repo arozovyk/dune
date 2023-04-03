@@ -140,7 +140,6 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let exe = exe_path_from_name cctx ~name ~linkage in
   let top_sorted_cms = Cm_files.top_sorted_cms cm_files ~mode in
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
-
   let open Memo.O in
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
@@ -170,8 +169,6 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
 
        In each case, we could then pass the argument in dependency order, which
        would provide a better fix for this issue. *)
-
-    (* Get external dependencies for each cms from the graph *)
     Action_builder.with_no_targets prefix
     >>> Command.run ~dir:(Path.build ctx.build_dir)
           (Context.compiler ctx mode)
@@ -198,7 +195,6 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
           ]
     >>| Action.Full.add_sandbox sandbox
   in
-
   Super_context.add_rule sctx ~loc ~dir
     ~mode:
       (match promote with
@@ -239,16 +235,16 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
   let+ for_exes =
     Memo.parallel_map programs
       ~f:(fun { Program.name; main_module_name; loc } ->
-        let main =
-          match Modules.find modules main_module_name with
-          | Some m -> m
-          | None ->
-            Code_error.raise "link_many: unable to find module"
-              [ ("main_module_name", Module_name.to_dyn main_module_name)
-              ; ("modules", Modules.to_dyn modules)
-              ]
-        in
         let top_sorted_modules =
+          let main =
+            match Modules.find modules main_module_name with
+            | Some m -> m
+            | None ->
+              Code_error.raise "link_many: unable to find module"
+                [ ("main_module_name", Module_name.to_dyn main_module_name)
+                ; ("modules", Modules.to_dyn modules)
+                ]
+          in
           Dep_graph.top_closed_implementations (CC.dep_graphs cctx).impl
             [ main ]
         in

@@ -1026,10 +1026,6 @@ end = struct
         |> Path.Set.filter ~f:(File_selector.test g)
         |> Memo.return
       | Build { rules_here; _ } ->
-        (* Dune_util.Log.info
-           [ Pp.textf "in TODO2 from %s fs %s " from
-               (File_selector.to_dyn g |> Dyn.to_string)
-           ]; *)
         let only_generated_files = File_selector.only_generated_files g in
         (* We look only at [by_file_targets] because [File_selector] does not
            match directories. *)
@@ -1048,7 +1044,7 @@ end = struct
         let+ fact = Pred.build g in
         Dep.Fact.Files.paths fact |> Path.Set.of_keys
 
-    let eval_memo () =
+    let eval_memo =
       Memo.create "eval-pred"
         ~human_readable_description:(fun glob ->
           Pp.concat
@@ -1058,7 +1054,7 @@ end = struct
         ~input:(module File_selector)
         ~cutoff:Path.Set.equal eval_impl
 
-    let eval = Memo.exec (eval_memo ())
+    let eval = Memo.exec eval_memo
 
     let build =
       Memo.exec

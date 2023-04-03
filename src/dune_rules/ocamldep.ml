@@ -15,17 +15,10 @@ end
 open Modules_data
 
 let parse_module_names ~dir ~(unit : Module.t) ~modules words =
-  (* Dune_util.Log.info
-     [ Pp.textf "Looking up for %s : \n  %s "
-         (Module.name unit |> Module_name.to_string)
-         (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") words ~init:"")
-     ]; *)
   List.concat_map words ~f:(fun mns ->
       let mname = Module_name.of_string mns in
       match Modules.find_dep modules ~of_:unit mname with
       | Ok [] ->
-        (* Dune_util.Log.info
-           [ Pp.textf "Got an external: \n  %s " (Module_name.to_string m) ]; *)
         [ Module_dep.External (Module_dep.External_name.of_string mns) ]
       | Ok s -> List.map s ~f:(fun x -> Module_dep.Local x)
       | Error `Parent_cycle ->
@@ -100,8 +93,6 @@ let deps_of
   in
   let lines = Action_builder.lines_of (Path.build ocamldep_output) in
   let+ _ =
-    (* Dune_util.Log.info
-      [ Pp.textf "Dogg for %s" (Module.name unit |> Module_name.to_string) ]; *)
     let produce_all_deps =
       let open Action_builder.O in
       let transitive_deps modules =
@@ -123,12 +114,6 @@ let deps_of
         let+ lines = lines in
         let immediate_deps =
           let parsed = parse_deps_exn ~file:(Module.File.path source) lines in
-
-          (* Dune_util.Log.info
-             [ Pp.textf "Parsed for %s : \n %s"
-                 (Module.name unit |> Module_name.to_string)
-                 (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") parsed ~init:"")
-             ]; *)
           parsed |> parse_module_names ~dir:md.dir ~unit ~modules
         in
         let local =
@@ -145,16 +130,6 @@ let deps_of
                 Module.obj_name m |> Module_name.Unique.to_string
               | External s -> Module_dep.External_name.to_string s)
         in
-
-        (* Dune_util.Log.info
-           [ Pp.textf "for module %s \n (%s,%s) : \n "
-               (Module.name unit |> Module_name.to_string)
-               (List.fold_left
-                  ~f:(fun x y -> x ^ y ^ "\n")
-                  (List.map transitive ~f:Path.to_string)
-                  ~init:"")
-               (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") modnameuniq ~init:"")
-           ]; *)
         (transitive, modnameuniq)
       in
       Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
@@ -171,21 +146,12 @@ let deps_of
     let+ () = Super_context.add_rule sctx ~dir rule in
     produce_all_deps
   in
-
   let all_deps_file = Path.build all_deps_file in
-
   let md_l =
     Action_builder.map
-      ~f:(fun x ->
-        (* Dune_util.Log.info
-           [ Pp.textf "md_l for %s\n %s"
-               (Module.name unit |> Module_name.to_string)
-               (List.fold_left ~f:(fun x y -> x ^ y ^ "\n") x ~init:"")
-           ]; *)
-        parse_compilation_units ~modules x)
+      ~f:(fun x -> parse_compilation_units ~modules x)
       (Action_builder.lines_of all_deps_file)
   in
-
   (Action_builder.memoize (Path.to_string all_deps_file)) md_l
 
 let read_deps_of ~obj_dir ~modules ~ml_kind unit =
@@ -203,7 +169,6 @@ let read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit =
     let ocamldep_output =
       Obj_dir.Module.dep obj_dir (Immediate (unit, ml_kind))
     in
-
     Action_builder.lines_of (Path.build ocamldep_output)
     |> Action_builder.map ~f:(fun lines ->
            parse_deps_exn ~file:(Module.File.path source) lines

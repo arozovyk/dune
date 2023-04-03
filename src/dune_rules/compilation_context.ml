@@ -286,8 +286,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   let includes =
     Includes.make ~dep_graphs ~project ~opaque ~requires:requires_compile ()
   in
-  (*   Dune_util.Log.info [ Pp.textf "create from %s" from ];
- *)
+
   { super_context
   ; scope
   ; expander

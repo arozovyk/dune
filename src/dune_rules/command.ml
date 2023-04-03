@@ -98,8 +98,6 @@ let dep_prog = function
   | Error _ -> Action_builder.return ()
 
 let run ~dir ?sandbox ?stdout_to prog args =
-  (*   let deps = Action_builder.return [ "" ] in
- *)
   Action_builder.With_targets.add ~file_targets:(Option.to_list stdout_to)
     (let open Action_builder.With_targets.O in
     let+ () = Action_builder.with_no_targets (dep_prog prog)

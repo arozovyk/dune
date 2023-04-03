@@ -204,14 +204,10 @@ let define_all_alias ~dir ~project ~js_targets =
     File_selector.create ~dir:(Path.build dir) ~only_generated_files pred
     |> Action_builder.paths_matching_unit ~loc:Loc.none
   in
-
   Rules.Produce.Alias.add_deps (Alias.all ~dir) deps
 
 let gen_rules sctx dir_contents cctxs expander
     { Dune_file.dir = src_dir; stanzas; project } ~dir:ctx_dir =
-  (* Dune_util.Log.info
-     [ Pp.textf "gen_rules222  %s" (Path.Build.to_string ctx_dir) ];
-  *)
   let files_to_install install_conf =
     let expand_str = Expander.No_deps.expand_str expander in
     let files_and_dirs =
@@ -227,10 +223,8 @@ let gen_rules sctx dir_contents cctxs expander
     let action =
       let open Action_builder.O in
       let* files_and_dirs = Action_builder.of_memo files_and_dirs in
-
       Action_builder.paths files_and_dirs
     in
-
     Rules.Produce.Alias.add_deps (Alias.all ~dir:ctx_dir) action
   in
   let* { For_stanza.merlin = merlins
@@ -558,11 +552,6 @@ let gen_rules ~sctx ~dir components : Build_config.gen_rules_result Memo.t =
                   then gen_project_rules sctx project
                   else Memo.return ()
                 in
-                (* Dune_util.Log.info
-                   [ Pp.textf "About to gen %s \n --> %s"
-                       (Source_tree.Dir.to_dyn source_dir |> Dyn.to_string)
-                       (Path.Build.to_string (Dir_contents.dir dir_contents))
-                   ]; *)
                 let* cctxs = gen_rules sctx dir_contents [] ~source_dir ~dir in
                 Memo.parallel_iter subdirs ~f:(fun dc ->
                     let+ (_ : (Loc.t * Compilation_context.t) list) =
@@ -626,10 +615,6 @@ let with_context ctx ~f =
   | Some ctx -> f ctx
 
 let gen_rules ctx_or_install ~dir components =
-  (* Dune_util.Log.info
-     [ Pp.textf "gen rules 3  %s components (%s)" (Path.Build.to_string dir)
-         (String.concat ~sep:"" components)
-     ]; *)
   match (ctx_or_install : Build_config.Context_or_install.t) with
   | Install ctx ->
     with_context ctx ~f:(fun sctx ->

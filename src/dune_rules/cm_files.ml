@@ -39,8 +39,7 @@ let top_sorted_cms t ~mode =
   let kind = Mode.cm_kind mode in
   Action_builder.map t.top_sorted_modules ~f:(fun modules ->
       let modules = filter_excluded_modules t modules in
-      ( Obj_dir.Module.L.cm_files t.obj_dir ~kind:(Ocaml kind) modules
-      , (* List.map ~f:(fun m -> Module.name m |> Module_name.to_string) *) modules ))
+      (Obj_dir.Module.L.cm_files t.obj_dir ~kind:(Ocaml kind) modules, modules))
 
 let top_sorted_objects_and_cms t ~mode =
   Action_builder.map t.top_sorted_modules ~f:(fun modules ->

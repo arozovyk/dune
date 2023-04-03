@@ -8,7 +8,7 @@ let gen_select_rules sctx ~dir compile_info =
   >>= Memo.parallel_iter
         ~f:(fun { Lib.Compile.Resolved_select.dst_fn; src_fn } ->
           let dst = Path.Build.relative dir dst_fn in
-          Super_context.add_rule  sctx ~dir
+          Super_context.add_rule sctx ~dir
             (Action_builder.with_file_targets ~file_targets:[ dst ]
                (let open Action_builder.O in
                let* src_fn = Resolve.read src_fn in
@@ -18,8 +18,6 @@ let gen_select_rules sctx ~dir compile_info =
                Action.Full.make (Copy_line_directive.action context ~src ~dst))))
 
 let with_lib_deps (t : Context.t) compile_info ~dir ~f =
-  (* Dune_util.Log.info
-     [ Pp.textf " with_lib_deps %s \n" (Lib.Compile. dir) ]; *)
   let prefix =
     if t.merlin then
       Lib.Compile.merlin_ident compile_info
