@@ -100,7 +100,7 @@ let rec expand :
                in
                let _ext_dep_map = String.Map.of_list_exn external_module_deps in
                ());
-              Action_builder.paths ~external_deps:[] fns))
+              Action_builder.paths fns))
          ~f:(fun () -> List.map fns ~f:(Path.reach ~from:dir)))
   | Paths fns ->
     Action_builder.With_targets.return (List.map fns ~f:(Path.reach ~from:dir))

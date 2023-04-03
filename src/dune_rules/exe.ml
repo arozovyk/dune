@@ -147,44 +147,8 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let* action_with_targets =
     let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml mode) in
     let prefix =
-      Action_builder.bind
-        (Action_builder.map2 top_sorted_cms module_deps ~f:(fun a b -> (a, b)))
-        ~f:(fun (_todo, md) ->
-          let external_deps =
-            List.filter_map ~f:Module_dep.filter_external md
-            |> List.map ~f:Module_dep.External_name.to_string
-          in
-
-          (* Dune_util.Log.info
-             [ Pp.textf
-                 "Top sorted cmc %s\n\
-                 \ cm_files.modules %s \n\
-                 \ external deps %s\n\
-                 \ from %s"
-                 (List.map2
-                    ~f:(fun a b -> "(" ^ Path.to_string a ^ ")" ^ b)
-                    (fst tst) (snd tst)
-                 |> String.concat ~sep:",\n")
-                 (Cm_files.modules cm_files
-                 |> List.map ~f:(fun m -> Module.name m |> Module_name.to_string)
-                 |> String.concat ~sep:",\n")
-                 (String.concat ~sep:",\n" external_deps)
-                 from
-             ]; *)
-
-          (* let external_deps =
-               ("bla" ^ (Module.name unit |> Module_name.to_string))
-               :: external_deps
-             in
-             Dune_util.Log.info
-               [ Pp.textf "exe: external deps for %s\n%s"
-                   (Module.name unit |> Module_name.to_string)
-                   (List.fold_left ~init:""
-                      ~f:(fun a b -> a ^ b ^ "\n")
-                      external_deps)
-               ]; *)
-          Action_builder.dyn_paths_unit ~external_deps
-            (Cm_files.top_sorted_objects_and_cms cm_files ~mode))
+      Cm_files.top_sorted_objects_and_cms cm_files ~mode
+      |> Action_builder.dyn_paths_unit
     in
     let+ fdo_linker_script_flags = Fdo.Linker_script.flags fdo_linker_script in
     let open Action_builder.With_targets.O in

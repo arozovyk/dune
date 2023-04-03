@@ -75,15 +75,15 @@ val with_no_targets : 'a t -> 'a With_targets.t
 
 (** [path p] records [p] as a file that is read by the action produced by the
     action builder. *)
-val path :  Path.t -> unit t
+val path : Path.t -> unit t
 
 val dep : Dep.t -> unit t
 
-val deps :  ?external_deps:string list -> Dep.Set.t -> unit t
+val deps : Dep.Set.t -> unit t
 
-val dyn_deps : ?external_deps:string list -> ('a * Dep.Set.t) t -> 'a t
+val dyn_deps : ('a * Dep.Set.t) t -> 'a t
 
-val paths :  ?external_deps:string list -> Path.t list -> unit t
+val paths : Path.t list -> unit t
 
 val path_set : Path.Set.t -> unit t
 
@@ -114,13 +114,12 @@ val dep_on_alias_rec :
 
 (** [dyn_memo_deps m] adds the dependencies computed by [m] while returning the
     extra value. *)
-val dyn_memo_deps :
-   ?external_deps:string list -> (Dep.Set.t * 'a) Memo.t -> 'a t
+val dyn_memo_deps : (Dep.Set.t * 'a) Memo.t -> 'a t
 
 (** Record dynamic dependencies *)
 val dyn_paths : ('a * Path.t list) t -> 'a t
 
-val dyn_paths_unit : ?external_deps:string list -> Path.t list t -> unit t
+val dyn_paths_unit : Path.t list t -> unit t
 
 val dyn_path_set : ('a * Path.Set.t) t -> 'a t
 
