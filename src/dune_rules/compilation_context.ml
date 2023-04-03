@@ -3,13 +3,34 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let make ~project ~opaque ~requires : _ Lib_mode.Cm_kind.Map.t =
+  let make ~project ~opaque ~requires ~md ~dep_graphs =
+    let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
+    let filter_with_odeps libs deps =
+      let+ module_deps, _ = deps in
+      let external_dep_names =
+        List.filter_map ~f:Module_dep.filter_external module_deps
+        |> List.map ~f:Module_dep.External_name.to_string
+      in
+      if List.is_empty external_dep_names then Lib_flags.L.empty
+      else
+        List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
+            let filtered = Lib_flags.L.filter_by_name b a in
+            (filtered, a))
+        |> fst
+    in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
+    let deps =
+      let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let module_deps = Dep_graph.deps_of dep_graph md in
+      Action_builder.run module_deps Action_builder.Eager
+      |> Resolve.Memo.lift_memo
+    in
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
-           (let+ libs = requires in
+           (let* libs = requires in
+            let+ libs = filter_with_odeps libs deps in
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -19,7 +40,8 @@ module Includes = struct
     let cmx_includes =
       Command.Args.memo
         (Resolve.Memo.args
-           (let+ libs = requires in
+           (let* libs = requires in
+            let+ libs = filter_with_odeps libs deps in
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -75,7 +97,7 @@ type t =
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
   ; requires_link : Lib.t list Resolve.t Memo.Lazy.t
-  ; includes : Includes.t
+  ; includes : md:Module.t -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
   ; stdlib : Ocaml_stdlib.t option
@@ -185,6 +207,9 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
+  let includes =
+    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
+  in
   { super_context
   ; scope
   ; expander
@@ -193,7 +218,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   ; flags
   ; requires_compile
   ; requires_link
-  ; includes = Includes.make ~project ~opaque ~requires:requires_compile
+  ; includes
   ; preprocessing
   ; opaque
   ; stdlib
@@ -229,9 +254,9 @@ let for_alias_module t alias_module =
       Sandbox_config.needs_sandboxing
     else Sandbox_config.no_special_requirements
   in
-  let (modules, includes) : modules * Includes.t =
+  let (modules, includes) : modules * (md:Module.t -> Includes.t) =
     match Modules.is_stdlib_alias t.modules.modules alias_module with
-    | false -> (singleton_modules alias_module, Includes.empty)
+    | false -> (singleton_modules alias_module, fun ~md:_ -> Includes.empty)
     | true ->
       (* The stdlib alias module is different from the alias modules usually
          produced by Dune: it contains code and depends on a few other
@@ -272,8 +297,14 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
     Ocaml.Version.supports_opaque_for_mli ctx.version
   in
   let modules = singleton_modules module_ in
+  let dummy =
+    Dep_graph.make ~dir:(Path.Build.of_string "")
+      ~per_module:Module_name.Unique.Map.empty
+  in
+  let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
-    Includes.make ~project:(Scope.project cctx.scope) ~opaque ~requires
+    Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
+      ~requires
   in
   { cctx with
     opaque
@@ -284,7 +315,8 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   ; modules
   }
 
-let for_wrapped_compat t = { t with includes = Includes.empty; stdlib = None }
+let for_wrapped_compat t =
+  { t with includes = (fun ~md:_ -> Includes.empty); stdlib = None }
 
 let for_plugin_executable t ~embed_in_plugin_libraries =
   let libs = Scope.libs t.scope in

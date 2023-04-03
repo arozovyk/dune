@@ -3,7 +3,7 @@ open Action_builder.O
 
 type t =
   { dir : Path.Build.t
-  ; per_module : Module.t list Action_builder.t Module_name.Unique.Map.t
+  ; per_module : Module_dep.t list Action_builder.t Module_name.Unique.Map.t
   }
 
 let make ~dir ~per_module = { dir; per_module }
@@ -25,7 +25,9 @@ module Top_closure = Top_closure.Make (Module_name.Unique.Set) (Action_builder)
 let top_closed t modules =
   let+ res =
     Top_closure.top_closure modules ~key:Module.obj_name ~deps:(fun m ->
-        Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m))
+        Action_builder.map
+          (Module_name.Unique.Map.find_exn t.per_module (Module.obj_name m))
+          ~f:(fun md -> List.filter_map md ~f:Module_dep.filter_local))
   in
   match res with
   | Ok modules -> modules

@@ -609,6 +609,16 @@ end = struct
           compute_rule_digest rule ~deps ~action ~sandbox_mode
             ~execution_parameters
         in
+        if
+             Targets.Validated.head targets
+             |> Path.Build.to_string
+             = "_build/default/bin/.main_b.eobjs/native/dune__exe__Main_a.cmx"
+           then
+             Dune_util.Log.info
+               [ Pp.textf "Rule digest for Main_a is  %s"
+                   (Digest.to_string rule_digest)
+               ]
+           else ();
         (* CR-someday amokhov: Add support for rules with directory targets. *)
         let can_go_in_shared_cache =
           action.can_go_in_shared_cache
