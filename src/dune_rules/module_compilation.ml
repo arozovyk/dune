@@ -291,9 +291,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     (let open Action_builder.With_targets.O in
     Action_builder.with_no_targets (Action_builder.paths extra_deps)
     >>> Action_builder.with_no_targets other_cm_files
-    >>> Command.run
-          ~module_name_built:(Module.name m |> Module_name.to_string)
-          ~dir:(Path.build ctx.build_dir) compiler
+    >>> Command.run ~dir:(Path.build ctx.build_dir) compiler
           [ Command.Args.dyn flags
           ; cmt_args
           ; Command.Args.S obj_dirs

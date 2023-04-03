@@ -196,7 +196,7 @@ module Lib_and_module = struct
                    Action_builder.of_memo (Link_params.get sctx t mode)
                  in
                  Command.Args.S
-                   (Deps (p.deps, [])
+                   (Deps p.deps
                    :: Hidden_deps (Dep.Set.of_files p.hidden_deps)
                    :: List.map p.include_dirs ~f:(fun dir ->
                           Command.Args.S [ A "-I"; Path dir ]))

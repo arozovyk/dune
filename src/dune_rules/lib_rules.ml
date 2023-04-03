@@ -75,7 +75,7 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
       let ctypes_cclib_flags =
         Ctypes_rules.ctypes_cclib_flags sctx ~expander ~buildable:lib.buildable
       in
-      Super_context.add_rule  ~dir sctx ~loc:lib.buildable.loc
+      Super_context.add_rule ~dir sctx ~loc:lib.buildable.loc
         (let open Action_builder.With_targets.O in
         Action_builder.with_no_targets obj_deps
         >>> Command.run (Ok compiler) ~dir:(Path.build ctx.build_dir)
@@ -94,13 +94,7 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
                   | Ppx_deriver _ | Ppx_rewriter _ -> [ "-linkall" ])
               ; Dyn
                   (Action_builder.map (Cm_files.top_sorted_cms cm_files ~mode)
-                     ~f:(fun (paths, m_list) ->
-                       let m_list =
-                         List.map
-                           ~f:(fun m -> Module.name m |> Module_name.to_string)
-                           m_list
-                       in
-                       Command.Args.Deps (paths, m_list)))
+                     ~f:(fun (paths, _) -> Command.Args.Deps paths))
               ; Hidden_targets
                   (match mode with
                   | Byte -> []
@@ -109,9 +103,8 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
                   (Action_builder.map ctypes_cclib_flags ~f:(fun x ->
                        Command.quote_args "-cclib" (map_cclibs x)))
               ; Deps
-                  ( Foreign.Objects.build_paths lib.buildable.extra_objects
-                      ~ext_obj:ctx.lib_config.ext_obj ~dir
-                  , [] )
+                  (Foreign.Objects.build_paths lib.buildable.extra_objects
+                     ~ext_obj:ctx.lib_config.ext_obj ~dir)
               ]))
 
 let gen_wrapped_compat_modules (lib : Library.t) cctx =
@@ -141,8 +134,7 @@ let gen_wrapped_compat_modules (lib : Library.t) cctx =
       let loc = lib.buildable.loc in
       let sctx = Compilation_context.super_context cctx in
       Action_builder.write_file (Path.as_in_build_dir_exn source_path) contents
-      |> Super_context.add_rule  sctx ~loc
-           ~dir:(Compilation_context.dir cctx))
+      |> Super_context.add_rule sctx ~loc ~dir:(Compilation_context.dir cctx))
 
 (* Rules for building static and dynamic libraries using [ocamlmklib]. *)
 let ocamlmklib ~loc ~c_library_flags ~sctx ~dir ~o_files ~archive_name
@@ -163,7 +155,7 @@ let ocamlmklib ~loc ~c_library_flags ~sctx ~dir ~o_files ~archive_name
         Command.quote_args "-ldopt" cclibs)
   in
   let build ~custom ~sandbox targets =
-    Super_context.add_rule  sctx ~dir ~loc
+    Super_context.add_rule sctx ~dir ~loc
       (let open Action_builder.With_targets.O in
       let ctx = Super_context.context sctx in
       Command.run ~dir:(Path.build ctx.build_dir) ctx.ocamlmklib
@@ -228,9 +220,9 @@ let foreign_rules (library : Foreign.Library.t) ~sctx ~expander ~dir
       Foreign_rules.build_o_files ~sctx ~dir ~expander
         ~requires:(Resolve.return []) ~dir_contents ~foreign_sources
     in
-    (Mode.Map.Multi.for_all_modes o_files_by_mode, [])
+    Mode.Map.Multi.for_all_modes o_files_by_mode
   in
-  let* () = Check_rules.add_files sctx ~dir (fst o_files) in
+  let* () = Check_rules.add_files sctx ~dir o_files in
   let* standard =
     let+ project =
       let+ scope = Scope.DB.find_by_dir dir in
@@ -303,7 +295,7 @@ let build_stubs lib ~cctx ~dir ~expander ~requires ~dir_contents
              @@ Mode.Map.Multi.for_only ~and_all:false o_files mode)
     then
       (* if stubs are not mode dependent *)
-      let o_files = (for_all_modes, []) in
+      let o_files = for_all_modes in
       ocamlmklib ~archive_name ~loc:lib.buildable.loc ~sctx ~dir ~o_files
         ~c_library_flags ~build_targets_together ~stubs_mode:Mode.Select.All
     else
@@ -317,7 +309,6 @@ let build_stubs lib ~cctx ~dir ~expander ~requires ~dir_contents
                , Mode.Select.Only mode ))
       in
       Memo.parallel_iter modes ~f:(fun (o_files, stubs_mode) ->
-          let o_files = (o_files, []) in
           ocamlmklib ~archive_name ~loc:lib.buildable.loc ~sctx ~dir ~o_files
             ~c_library_flags ~build_targets_together ~stubs_mode)
 
@@ -365,8 +356,7 @@ let build_shared lib ~native_archives ~sctx ~dir ~flags =
           (Action_builder.paths (List.map ~f:Path.build native_archives))
         >>> build
       in
-      Super_context.add_rule  sctx build ~dir
-        ~loc:lib.buildable.loc)
+      Super_context.add_rule sctx build ~dir ~loc:lib.buildable.loc)
 
 let setup_build_archives (lib : Dune_file.Library.t) ~top_sorted_modules ~cctx
     ~expander ~lib_info =
@@ -402,8 +392,7 @@ let setup_build_archives (lib : Dune_file.Library.t) ~top_sorted_modules ~cctx
                   (* XXX we should get the directory from the dir of the cma
                      file explicitly *)
                   let dst = Path.Build.relative (Obj_dir.dir obj_dir) fname in
-                  Super_context.add_rule  sctx ~dir
-                    ~loc:lib.buildable.loc
+                  Super_context.add_rule sctx ~dir ~loc:lib.buildable.loc
                     (Action_builder.symlink ~src ~dst)))
   in
   let modes = Compilation_context.modes cctx in
@@ -441,9 +430,7 @@ let setup_build_archives (lib : Dune_file.Library.t) ~top_sorted_modules ~cctx
                 ~config:(Some config) ~src:(Path.build src) ~obj_dir)
         in
         Memo.parallel_iter action_with_targets ~f:(fun rule ->
-            rule
-            >>= Super_context.add_rule  sctx ~dir
-                  ~loc:lib.buildable.loc))
+            rule >>= Super_context.add_rule sctx ~dir ~loc:lib.buildable.loc))
   in
   Memo.when_
     (Dynlink_supported.By_the_os.get natdynlink_supported && modes.ocaml.native)
@@ -480,11 +467,10 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
     | Public p -> Some (Public_lib.name p)
     | Private _ -> None
   in
-  Compilation_context.create  () ~super_context:sctx ~expander
-    ~scope ~obj_dir ~modules ~flags ~requires_compile ~requires_link
-    ~preprocessing:pp ~opaque:Inherit_from_settings
-    ~js_of_ocaml:(Some js_of_ocaml) ?stdlib:lib.stdlib ~package ?vimpl
-    ?public_lib_name ~modes
+  Compilation_context.create () ~super_context:sctx ~expander ~scope ~obj_dir
+    ~modules ~flags ~requires_compile ~requires_link ~preprocessing:pp
+    ~opaque:Inherit_from_settings ~js_of_ocaml:(Some js_of_ocaml)
+    ?stdlib:lib.stdlib ~package ?vimpl ?public_lib_name ~modes
 
 let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
     ~dir_contents ~compile_info =

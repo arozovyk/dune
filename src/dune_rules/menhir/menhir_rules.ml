@@ -183,7 +183,7 @@ module Run (P : PARAMS) = struct
     let* () =
       menhir
         [ Command.Args.dyn expanded_flags
-        ; Deps (sources stanza.modules, [])
+        ; Deps (sources stanza.modules)
         ; A "--base"
         ; Path (Path.relative (Path.build dir) base)
         ; A "--infer-write-query"
@@ -221,7 +221,7 @@ module Run (P : PARAMS) = struct
     (* 3. A second invocation of Menhir reads the inferred [.mli] file. *)
     menhir
       [ Command.Args.dyn expanded_flags
-      ; Deps (sources stanza.modules, [])
+      ; Deps (sources stanza.modules)
       ; A "--base"
       ; Path (Path.relative (Path.build dir) base)
       ; A "--infer-read-reply"
@@ -240,7 +240,7 @@ module Run (P : PARAMS) = struct
     let expanded_flags = expand_flags stanza.flags in
     menhir
       [ Command.Args.dyn expanded_flags
-      ; Deps (sources stanza.modules, [])
+      ; Deps (sources stanza.modules)
       ; A "--base"
       ; Path (Path.relative (Path.build dir) base)
       ; Hidden_targets (targets base ~cmly)

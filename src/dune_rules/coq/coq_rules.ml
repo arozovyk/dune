@@ -295,7 +295,7 @@ let setup_coqdep_for_theory_rule ~sctx ~dir ~loc ~theories_deps ~wrapper_name
     [ Command.Args.S
         (coqc_file_flags ~dir ~theories_deps ~wrapper_name ~boot_type ~ml_flags)
     ; As [ "-dyndep"; "opt" ]
-    ; Deps (sources, [])
+    ; Deps sources
     ]
   in
   let stdout_to = dep_theory_file ~dir ~wrapper_name in
@@ -522,9 +522,8 @@ let setup_coqdoc_rules ~sctx ~dir ~theories_deps (s : Coq_stanza.Theory.t)
            ; A "-d"
            ; Path (Path.build doc_dir)
            ; Deps
-               ( List.map ~f:Path.build
-                 @@ List.map ~f:Coq_module.source coq_modules
-               , [] )
+               (List.map ~f:Path.build
+               @@ List.map ~f:Coq_module.source coq_modules)
            ; Dyn globs
            ; Hidden_deps
                (Dep.Set.of_files @@ List.map ~f:Path.build

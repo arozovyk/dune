@@ -189,13 +189,10 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
                 ; Lib_flags.Lib_and_module.L.link_flags sctx to_link
                     ~lib_config:ctx.lib_config ~mode:linkage.mode
                 ])
-          ; Deps (o_files, [])
+          ; Deps o_files
           ; Dyn
-              (Action_builder.map top_sorted_cms ~f:(fun (p, mlist) ->
-                   Command.Args.Deps
-                     ( p
-                     , List.map mlist ~f:(fun m ->
-                           Module.name m |> Module_name.to_string) )))
+              (Action_builder.map top_sorted_cms ~f:(fun (p, _) ->
+                   Command.Args.Deps p))
           ; fdo_linker_script_flags
           ; Dyn link_args
           ]

@@ -50,7 +50,7 @@ module Args : sig
     | S : 'a t list -> 'a t
     | Concat : string * 'a t list -> 'a t
     | Dep : Path.t -> _ t
-    | Deps : (Path.t list * string list) -> _ t
+    | Deps : Path.t list -> _ t
     | Target : Path.Build.t -> [> `Targets ] t
     | Path : Path.t -> _ t
     | Paths : Path.t list -> _ t
@@ -70,7 +70,7 @@ module Args : sig
       expression. Use this function when the same subexpression appears in
       multiple [Command.Args.t] expressions to share both the time and memory
       required for the computation. *)
-  val memo :  without_targets t -> _ t
+  val memo : without_targets t -> _ t
 
   val as_any : without_targets t -> any t
 end
@@ -78,9 +78,7 @@ end
 (* TODO: Using list in [with_targets t list] complicates the API unnecessarily:
    we can use the constructor [S] to concatenate lists instead. *)
 val run :
-     ?module_name_built:string
-  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> dir:Path.t
+     dir:Path.t
   -> ?sandbox:Sandbox_config.t
   -> ?stdout_to:Path.Build.t
   -> Action.Prog.t
@@ -109,18 +107,10 @@ end
     corresponding strings, assuming they will be used as arguments to run a
     command in directory [dir]. *)
 val expand :
-     ?module_name_built:string
-  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> dir:Path.t
-  -> 'a Args.t
-  -> string list Action_builder.With_targets.t
+  dir:Path.t -> 'a Args.t -> string list Action_builder.With_targets.t
 
 (** [expand_no_targets ~dir args] interprets the command line arguments [args]
     to produce corresponding strings, assuming they will be used as arguments to
     run a command in directory [dir]. *)
 val expand_no_targets :
-     ?module_name_built:string
-  -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> dir:Path.t
-  -> Args.without_targets Args.t
-  -> string list Action_builder.t
+  dir:Path.t -> Args.without_targets Args.t -> string list Action_builder.t
