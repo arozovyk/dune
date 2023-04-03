@@ -22,7 +22,6 @@ let add_obj_dir sctx ~obj_dir mode =
       in
       File_selector.create ~dir dev_files
     in
-
     Rules.Produce.Alias.add_deps
       (Alias.check ~dir:(Obj_dir.dir obj_dir))
       (Action_builder.paths_matching_unit ~loc:(Loc.of_pos __POS__) dir_glob)

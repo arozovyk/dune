@@ -51,11 +51,6 @@ let deps_of_lib (lib : Lib.t) ~groups =
   List.map groups ~f:(fun g ->
       let dir = Group.obj_dir g obj_dir in
       let fs = File_selector.create ~dir (Group.to_predicate g) in
-
-      (* Dune_util.Log.info
-         [ Pp.textf "Creates fs from %s %s \n" from
-             (File_selector.to_dyn fs |> Dyn.to_string)
-         ]; *)
       fs |> Dep.file_selector)
   |> Dep.Set.of_list
 

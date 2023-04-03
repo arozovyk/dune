@@ -188,7 +188,7 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
                 ])
           ; Deps o_files
           ; Dyn
-              (Action_builder.map top_sorted_cms ~f:(fun (p, _) ->
+              (Action_builder.map top_sorted_cms ~f:(fun p ->
                    Command.Args.Deps p))
           ; fdo_linker_script_flags
           ; Dyn link_args

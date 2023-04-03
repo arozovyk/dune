@@ -8,8 +8,6 @@ type t =
   ; excluded_modules : Module_name.Set.t
   }
 
-let modules t = t.modules
-
 let filter_excluded_modules t modules =
   List.filter modules ~f:(fun module_ ->
       let name = Module.name module_ in
@@ -39,7 +37,7 @@ let top_sorted_cms t ~mode =
   let kind = Mode.cm_kind mode in
   Action_builder.map t.top_sorted_modules ~f:(fun modules ->
       let modules = filter_excluded_modules t modules in
-      (Obj_dir.Module.L.cm_files t.obj_dir ~kind:(Ocaml kind) modules, modules))
+      Obj_dir.Module.L.cm_files t.obj_dir ~kind:(Ocaml kind) modules)
 
 let top_sorted_objects_and_cms t ~mode =
   Action_builder.map t.top_sorted_modules ~f:(fun modules ->

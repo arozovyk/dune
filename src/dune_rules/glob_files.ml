@@ -95,7 +95,6 @@ module Without_vars = struct
         let dir = Path.Build.relative base_dir relative_dir in
         File_selector.of_glob ~dir:(Path.build dir) glob
       in
-
       if recursive then
         get_descendants_of_relative_dir_relative_to_base_dir_local ~base_dir
           ~relative_dir
