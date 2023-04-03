@@ -41,4 +41,4 @@ val read_immediate_deps_of :
   -> modules:Modules.t
   -> ml_kind:Ml_kind.t
   -> Module.t
-  -> Module_dep.t list Action_builder.t
+  -> Module.t list Action_builder.t

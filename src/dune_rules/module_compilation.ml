@@ -243,7 +243,6 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     |> List.concat_map ~f:(fun p ->
            [ Command.Args.A "-I"; Path (Path.build p) ])
   in
-
   Super_context.add_rule sctx
     ~dir:
       (let dune_version =

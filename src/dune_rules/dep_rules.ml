@@ -142,8 +142,7 @@ let immediate_deps_of unit modules obj_dir ml_kind =
       | Some m -> m
       | None -> Modules.compat_for_exn modules unit
     in
-    List.singleton (Module_dep.to_local interface_module)
-    |> Action_builder.return
+    List.singleton interface_module |> Action_builder.return
   | _ ->
     if has_single_file modules then Action_builder.return []
     else Ocamldep.read_immediate_deps_of ~obj_dir ~modules ~ml_kind unit

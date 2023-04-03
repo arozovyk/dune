@@ -12,6 +12,6 @@ val immediate_deps_of :
   -> Modules.t
   -> Path.Build.t Obj_dir.t
   -> Ml_kind.t
-  -> Module_dep.t list Action_builder.t
+  -> Module.t list Action_builder.t
 
 val rules : Ocamldep.Modules_data.t -> Dep_graph.t Ml_kind.Dict.t Memo.t
