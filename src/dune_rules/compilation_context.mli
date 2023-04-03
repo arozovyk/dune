@@ -70,7 +70,6 @@ val requires_compile : t -> Lib.t list Resolve.Memo.t
 val includes :
      t
   -> md:Module.t
-  -> mdeps:Module_dep.t list Action_builder.t
   -> Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
 val preprocessing : t -> Pp_spec.t

@@ -245,11 +245,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
   in
   let includ' =
     (* Filter this depending on module that is being compiled and ocamldep dependecies*)
-    let incls =
-      Lib_mode.Cm_kind.Map.get
-        (CC.includes ~md:m ~mdeps:module_deps cctx)
-        cm_kind
-    in
+    let incls = Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind in
     Command.Args.as_any incls
   in
   Super_context.add_rule sctx
@@ -365,9 +361,7 @@ let ocamlc_i ~(deps : Module_dep.t list Action_builder.t Ml_kind.Dict.t) cctx
              ; A "-I"
              ; Path (Path.build (Obj_dir.byte_dir obj_dir))
              ; Command.Args.as_any
-                 (Lib_mode.Cm_kind.Map.get
-                    (CC.includes ~md:m ~mdeps:(Action_builder.return []) cctx)
-                    (Ocaml Cmo))
+                 (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) (Ocaml Cmo))
              ; opens modules m
              ; A "-short-paths"
              ; A "-i"

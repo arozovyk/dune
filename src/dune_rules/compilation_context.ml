@@ -3,12 +3,10 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let make ?dep_graphs () ~project ~opaque ~requires ~md ~mdeps =
+  let make ?dep_graphs () ~project ~opaque ~requires ~md =
     let patched = true in
     let res =
-      let _ = mdeps in
       let open Lib_mode.Cm_kind.Map in
-      let _mname = Module.name md |> Module_name.to_string in
       let open Resolve.Memo.O in
       let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
       let make_includes_args ~mode groups =
@@ -18,15 +16,12 @@ module Includes = struct
                 match dep_graphs with
                 | Some (dep_graphs : Dep_graph.t Ml_kind.Dict.t) ->
                   let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-
                   let module_deps = Dep_graph.deps_of dep_graph md in
-
                   let a = Action_builder.run module_deps Action_builder.Eager in
                   let rrr = Resolve.Memo.lift_memo a in
                   rrr
                 | None -> Resolve.Memo.return ([], Dep.Map.empty)
               in
-
               let* libs = requires in
               let+ abra, _ = r in
               let external_dep_names =
@@ -170,8 +165,7 @@ type t =
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
   ; requires_link : Lib.t list Resolve.t Memo.Lazy.t
-  ; includes :
-      md:Module.t -> mdeps:Module_dep.t list Action_builder.t -> Includes.t
+  ; includes : md:Module.t -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
   ; stdlib : Ocaml_stdlib.t option
@@ -326,14 +320,9 @@ let for_alias_module t alias_module =
       Sandbox_config.needs_sandboxing
     else Sandbox_config.no_special_requirements
   in
-  let (modules, includes)
-        : modules
-          * (   md:Module.t
-             -> mdeps:Module_dep.t list Action_builder.t
-             -> Includes.t) =
+  let (modules, includes) : modules * (md:Module.t -> Includes.t) =
     match Modules.is_stdlib_alias t.modules.modules alias_module with
-    | false ->
-      (singleton_modules alias_module, fun ~md:_ ~mdeps:_ -> Includes.empty)
+    | false -> (singleton_modules alias_module, fun ~md:_ -> Includes.empty)
     | true ->
       (* The stdlib alias module is different from the alias modules usually
          produced by Dune: it contains code and depends on a few other
@@ -387,7 +376,7 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   }
 
 let for_wrapped_compat t =
-  { t with includes = (fun ~md:_ ~mdeps:_ -> Includes.empty); stdlib = None }
+  { t with includes = (fun ~md:_ -> Includes.empty); stdlib = None }
 
 let for_plugin_executable t ~embed_in_plugin_libraries =
   let libs = Scope.libs t.scope in
