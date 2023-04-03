@@ -14,17 +14,14 @@ let register_action_deps :
   | Lazy -> Memo.return deps
 
 let dyn_memo_deps deps =
-  let oft =
-    of_thunk
-      { f =
-          (fun mode ->
-            let open Memo.O in
-            let* deps2, paths = deps in
-            let+ deps = register_action_deps mode deps2 in
-            (paths, deps))
-      }
-  in
-  oft
+  of_thunk
+    { f =
+        (fun mode ->
+          let open Memo.O in
+          let* deps, paths = deps in
+          let+ deps = register_action_deps mode deps in
+          (paths, deps))
+    }
 
 let deps d = dyn_memo_deps (Memo.return (d, ()))
 
@@ -36,14 +33,13 @@ let dyn_deps t =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
-
           let+ deps = register_action_deps mode deps in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
 let path p = deps (Dep.Set.singleton (Dep.file p))
 
-let paths   ps = deps (Dep.Set.of_files ps)
+let paths ps = deps (Dep.Set.of_files ps)
 
 let path_set ps = deps (Dep.Set.of_files_set ps)
 
@@ -70,8 +66,8 @@ let paths_matching_unit ~loc g = ignore (paths_matching ~loc g)
 let dyn_paths paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files paths))
 
-let dyn_paths_unit   paths =
-  dyn_deps  (paths >>| fun paths -> ((), Dep.Set.of_files paths))
+let dyn_paths_unit paths =
+  dyn_deps (paths >>| fun paths -> ((), Dep.Set.of_files paths))
 
 let dyn_path_set paths =
   dyn_deps (paths >>| fun (x, paths) -> (x, Dep.Set.of_files_set paths))

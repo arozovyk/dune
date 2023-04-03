@@ -132,7 +132,7 @@ let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
   Path.Build.relative (CC.dir cctx) (name ^ linkage.ext)
 
 let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
-    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx unit =
+    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx =
   let sctx = CC.super_context cctx in
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
@@ -140,8 +140,6 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
   let exe = exe_path_from_name cctx ~name ~linkage in
   let top_sorted_cms = Cm_files.top_sorted_cms cm_files ~mode in
   let fdo_linker_script = Fdo.Linker_script.create cctx (Path.build exe) in
-  let dep_graph = Ml_kind.Dict.get (Compilation_context.dep_graphs cctx) Impl in
-  let module_deps = Dep_graph.deps_of dep_graph unit in
 
   let open Memo.O in
   let* action_with_targets =
@@ -172,40 +170,10 @@ let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
 
        In each case, we could then pass the argument in dependency order, which
        would provide a better fix for this issue. *)
-    let deps =
-      Action_builder.map module_deps ~f:(fun d ->
-          let external_deps =
-            List.filter_map ~f:Module_dep.filter_external d
-            |> List.map ~f:Module_dep.External_name.to_string
-          in
-          let external_deps =
-            ("bla"
-            ^ List.fold_left ~init:""
-                ~f:(fun a b -> a ^ b ^ "\n")
-                (List.map ~f:Path.to_string o_files)
-            ^ "->")
-            :: external_deps
-          in
-          external_deps)
-    in
-    let _deps = deps in
 
     (* Get external dependencies for each cms from the graph *)
-    let ext_dep_graph =
-      Action_builder.map top_sorted_cms ~f:(fun (_, mlist) ->
-          List.map mlist ~f:(fun m ->
-              let m_deps =
-                Dep_graph.deps_of dep_graph m
-                |> Action_builder.map ~f:(fun mdeps ->
-                       List.filter_map ~f:Module_dep.filter_external mdeps
-                       |> List.map ~f:Module_dep.External_name.to_string)
-              in
-
-              (Module.name m |> Module_name.to_string, m_deps)))
-    in
-
     Action_builder.with_no_targets prefix
-    >>> Command.run ~deps:ext_dep_graph ~dir:(Path.build ctx.build_dir)
+    >>> Command.run ~dir:(Path.build ctx.build_dir)
           (Context.compiler ctx mode)
           [ Command.Args.dyn ocaml_flags
           ; A "-o"
@@ -319,8 +287,8 @@ let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
                   | Byte | Byte_for_jsoo | Byte_with_stubs_statically_linked_in
                     -> (link_args, select_o_files Mode.Byte)
                 in
-                link_exe cctx main ~loc ~name ~linkage ~cm_files
-                  ~link_time_code_gen ~promote ~link_args ~o_files ?sandbox)
+                link_exe cctx ~loc ~name ~linkage ~cm_files ~link_time_code_gen
+                  ~promote ~link_args ~o_files ?sandbox)
         in
         top_sorted_modules)
   in

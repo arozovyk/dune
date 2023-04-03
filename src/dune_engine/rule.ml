@@ -59,7 +59,6 @@ module T = struct
     ; info : Info.t
     ; loc : Loc.t
     ; dir : Path.Build.t
-    ; external_deps : string list
     }
 
   let compare a b = Id.compare a.id b.id
@@ -114,19 +113,7 @@ let make ?(mode = Mode.Standard) ~context ?(info = Info.Internal) ~targets
            (Path.build (Path.Build.relative dir "_unknown_")))
     | Source_file_copy p -> Loc.in_file (Path.source p)
   in
-  let external_deps = [] in
-  { id = Id.gen ()
-  ; targets
-  ; context
-  ; action
-  ; mode
-  ; info
-  ; loc
-  ; dir
-  ; external_deps
-  }
-
-let set_external_deps t external_deps = { t with external_deps }
+  { id = Id.gen (); targets; context; action; mode; info; loc; dir }
 
 let set_action t action =
   let action = Action_builder.memoize "Rule.set_action" action in

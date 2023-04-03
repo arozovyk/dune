@@ -59,7 +59,7 @@ module type Rule_generator = sig
 
       [gen_rules] may only generate rules whose targets are descendant of [dir]. *)
   val gen_rules :
-        Context_or_install.t
+       Context_or_install.t
     -> dir:Path.Build.t
     -> string list
     -> gen_rules_result Memo.t
