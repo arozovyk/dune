@@ -3,137 +3,72 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let make ?dep_graphs () ~project ~opaque ~requires ~md =
-    let patched = true in
-    let res =
-      let open Lib_mode.Cm_kind.Map in
-      let open Resolve.Memo.O in
-      let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
-      let make_includes_args ~mode groups =
-        Command.Args.memo
-          (Resolve.Memo.args
-             (let r =
-                match dep_graphs with
-                | Some (dep_graphs : Dep_graph.t Ml_kind.Dict.t) ->
-                  let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-                  let module_deps = Dep_graph.deps_of dep_graph md in
-                  let a = Action_builder.run module_deps Action_builder.Eager in
-                  let rrr = Resolve.Memo.lift_memo a in
-                  rrr
-                | None -> Resolve.Memo.return ([], Dep.Map.empty)
-              in
-              let* libs = requires in
-              let+ abra, _ = r in
-              let external_dep_names =
-                List.filter_map ~f:Module_dep.filter_external abra
-                |> List.map ~f:Module_dep.External_name.to_string
-              in
-              let external_dep_names =
-                if List.is_empty external_dep_names then [ "" ]
-                else external_dep_names
-              in
-              let filtered =
-                List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
-                    let filtered = Lib_flags.L.filter_by_name b a in
-                    (filtered, a))
-              in
-              let l1 = fst filtered in
-              (* Dune_util.Log.info
-                 [ Pp.textf
-                     "Making context for module %s\n\
-                     \ libs are %s\n\
-                     \ libs atref are %s\n\
-                      abrakadabra deps is %s\n\
-                     \ " mname
-                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-                     (Lib_flags.L.to_string_list l1 |> String.concat ~sep:",")
-                     (external_dep_names |> String.concat ~sep:",")
-                 ]; *)
-              (* Dune_util.Log.info
-                 [ Pp.textf "Includes.make cmi_includes libs are %s \n "
-                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-                 ]; *)
-              let lib_list = if patched then l1 else libs in
-              Command.Args.S
-                [ iflags lib_list mode
-                ; Hidden_deps (Lib_file_deps.deps lib_list ~groups)
-                ]))
+  let make ~project ~opaque ~requires ~md ~dep_graphs =
+    let open Lib_mode.Cm_kind.Map in
+    let open Resolve.Memo.O in
+    let filter_with_odeps libs deps =
+      let+ module_deps, _ = deps in
+      let external_dep_names =
+        List.filter_map ~f:Module_dep.filter_external module_deps
+        |> List.map ~f:Module_dep.External_name.to_string
       in
-      let cmi_includes = make_includes_args ~mode:(Ocaml Byte) [ Ocaml Cmi ] in
-      let cmx_includes =
-        Command.Args.memo
-          (Resolve.Memo.args
-             (let r =
-                match dep_graphs with
-                | Some (dep_graphs : Dep_graph.t Ml_kind.Dict.t) ->
-                  let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-
-                  let module_deps = Dep_graph.deps_of dep_graph md in
-
-                  let a = Action_builder.run module_deps Action_builder.Eager in
-                  let rrr = Resolve.Memo.lift_memo a in
-                  rrr
-                | None -> Resolve.Memo.return ([], Dep.Map.empty)
-              in
-              let* libs = requires in
-              let+ abra, _ = r in
-              let external_dep_names =
-                List.filter_map ~f:Module_dep.filter_external abra
-                |> List.map ~f:Module_dep.External_name.to_string
-              in
-              let external_dep_names =
-                if List.is_empty external_dep_names then [ "" ]
-                else external_dep_names
-              in
-              let filtered =
-                List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
-                    let filtered = Lib_flags.L.filter_by_name b a in
-                    (filtered, a))
-              in
-              let l1 = fst filtered in
-              (* Dune_util.Log.info
-                 [ Pp.textf
-                     "Making context for module %s\n\
-                     \ libs are %s\n\
-                     \ libs atref are %s\n\
-                      abrakadabra deps is %s\n\
-                     \ " mname
-                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-                     (Lib_flags.L.to_string_list l1 |> String.concat ~sep:",")
-                     (external_dep_names |> String.concat ~sep:",")
-                 ]; *)
-              (* Dune_util.Log.info
-                 [ Pp.textf "Includes.make cmx_includes libs are %s \n "
-                     (Lib_flags.L.to_string_list libs |> String.concat ~sep:",")
-                 ]; *)
-              let lib_list = if patched then l1 else libs in
-
-              Command.Args.S
-                [ iflags lib_list (Ocaml Native)
-                ; Hidden_deps
-                    (if opaque then
-                     List.map lib_list ~f:(fun lib ->
-                         ( lib
-                         , if Lib.is_local lib then
-                             [ Lib_file_deps.Group.Ocaml Cmi ]
-                           else [ Ocaml Cmi; Ocaml Cmx ] ))
-                     |> Lib_file_deps.deps_with_exts
-                    else
-                      Lib_file_deps.deps lib_list
-                        ~groups:[ Lib_file_deps.Group.Ocaml Cmi; Ocaml Cmx ])
-                ]))
+      let external_dep_names =
+        if List.is_empty external_dep_names then [ "" ] else external_dep_names
       in
-      let melange_cmi_includes =
-        make_includes_args ~mode:Melange [ Melange Cmi ]
+      let filtered =
+        List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
+            let filtered = Lib_flags.L.filter_by_name b a in
+            (filtered, a))
       in
-      let melange_cmj_includes =
-        make_includes_args ~mode:Melange [ Melange Cmi; Melange Cmj ]
-      in
-      { ocaml = { cmi = cmi_includes; cmo = cmi_includes; cmx = cmx_includes }
-      ; melange = { cmi = melange_cmi_includes; cmj = melange_cmj_includes }
-      }
+      fst filtered
     in
-    res
+    let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
+    let deps =
+      let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let module_deps = Dep_graph.deps_of dep_graph md in
+      Action_builder.run module_deps Action_builder.Eager
+      |> Resolve.Memo.lift_memo
+    in
+    let make_includes_args ~mode groups =
+      Command.Args.memo
+        (Resolve.Memo.args
+           (let* libs = requires in
+            let+ libs = filter_with_odeps libs deps in
+            Command.Args.S
+              [ iflags libs mode
+              ; Hidden_deps (Lib_file_deps.deps libs ~groups)
+              ]))
+    in
+    let cmi_includes = make_includes_args ~mode:(Ocaml Byte) [ Ocaml Cmi ] in
+    let cmx_includes =
+      Command.Args.memo
+        (Resolve.Memo.args
+           (let* libs = requires in
+            let+ libs = filter_with_odeps libs deps in
+            Command.Args.S
+              [ iflags libs (Ocaml Native)
+              ; Hidden_deps
+                  (if opaque then
+                   List.map libs ~f:(fun lib ->
+                       ( lib
+                       , if Lib.is_local lib then
+                           [ Lib_file_deps.Group.Ocaml Cmi ]
+                         else [ Ocaml Cmi; Ocaml Cmx ] ))
+                   |> Lib_file_deps.deps_with_exts
+                  else
+                    Lib_file_deps.deps libs
+                      ~groups:[ Lib_file_deps.Group.Ocaml Cmi; Ocaml Cmx ])
+              ]))
+    in
+    let melange_cmi_includes =
+      make_includes_args ~mode:Melange [ Melange Cmi ]
+    in
+    let melange_cmj_includes =
+      make_includes_args ~mode:Melange [ Melange Cmi; Melange Cmj ]
+    in
+    { ocaml = { cmi = cmi_includes; cmo = cmi_includes; cmx = cmx_includes }
+    ; melange = { cmi = melange_cmi_includes; cmj = melange_cmj_includes }
+    }
 
   let empty = Lib_mode.Cm_kind.Map.make_all Command.Args.empty
 end
@@ -276,9 +211,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
-  let dep_graphs = dep_graphs in
   let includes =
-    Includes.make ~dep_graphs ~project ~opaque ~requires:requires_compile ()
+    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
   in
 
   { super_context
@@ -363,8 +297,14 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
     Ocaml.Version.supports_opaque_for_mli ctx.version
   in
   let modules = singleton_modules module_ in
+  let dummy =
+    Dep_graph.make ~dir:(Path.Build.of_string "")
+      ~per_module:Module_name.Unique.Map.empty
+  in
+  let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
-    Includes.make ~project:(Scope.project cctx.scope) ~opaque ~requires ()
+    Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
+      ~requires
   in
   { cctx with
     opaque
