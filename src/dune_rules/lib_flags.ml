@@ -95,6 +95,8 @@ module L = struct
   let to_string_list (t : t) =
     List.map t ~f:(fun lib -> Lib.to_dyn lib |> Dyn.to_string)
 
+  let empty : t = []
+
   let to_iflags dirs =
     Command.Args.S
       (Path.Set.fold dirs ~init:[] ~f:(fun dir acc ->

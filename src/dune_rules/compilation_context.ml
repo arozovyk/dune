@@ -12,15 +12,12 @@ module Includes = struct
         List.filter_map ~f:Module_dep.filter_external module_deps
         |> List.map ~f:Module_dep.External_name.to_string
       in
-      let external_dep_names =
-        if List.is_empty external_dep_names then [ "" ] else external_dep_names
-      in
-      let filtered =
+      if List.is_empty external_dep_names then Lib_flags.L.empty
+      else
         List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
             let filtered = Lib_flags.L.filter_by_name b a in
             (filtered, a))
-      in
-      fst filtered
+        |> fst
     in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let deps =
