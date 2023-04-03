@@ -92,7 +92,6 @@ module L = struct
         in
         String.equal lib_name name)
 
-  (* todo filter by actual *)
   let to_string_list (t : t) =
     List.map t ~f:(fun lib -> Lib.to_dyn lib |> Dyn.to_string)
 

@@ -101,7 +101,6 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Dir_contents.ocaml dir_contents
     >>| Ml_sources.modules_and_obj_dir ~for_:(Exe { first_exe })
   in
-
   let* () = Check_rules.add_obj_dir sctx ~obj_dir `Ocaml in
   let ctx = Super_context.context sctx in
   let project = Scope.project scope in
@@ -207,8 +206,8 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
   in
   let+ () =
-    Memo.parallel_iter dep_graphs.for_exes ~f:(fun x ->
-        Check_rules.add_cycle_check sctx ~dir x)
+    Memo.parallel_iter dep_graphs.for_exes
+      ~f:(Check_rules.add_cycle_check sctx ~dir)
   in
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
@@ -242,7 +241,6 @@ let rules ~sctx ~dir ~dir_contents ~scope ~expander
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
       ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
   in
-  (* here *)
   let* () = Buildable_rules.gen_select_rules sctx compile_info ~dir
   and* () =
     let requires_link = Lib.Compile.requires_link compile_info in

@@ -93,8 +93,8 @@ let build_lib (lib : Library.t) ~native_archives ~sctx ~expander ~flags ~dir
                   | Normal -> []
                   | Ppx_deriver _ | Ppx_rewriter _ -> [ "-linkall" ])
               ; Dyn
-                  (Action_builder.map (Cm_files.top_sorted_cms cm_files ~mode)
-                     ~f:(fun paths -> Command.Args.Deps paths))
+                  (Cm_files.top_sorted_cms cm_files ~mode
+                  |> Action_builder.map ~f:(fun x -> Command.Args.Deps x))
               ; Hidden_targets
                   (match mode with
                   | Byte -> []
