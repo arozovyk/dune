@@ -324,13 +324,13 @@ end = struct
   open Load_rules
 
   let create_copy_rules ~ctx_dir ~non_target_source_files =
-    Path.Source.Set.to_list_map non_target_source_files ~f:(fun path' ->
-        let ctx_path = Path.Build.append_source ctx_dir path' in
+    Path.Source.Set.to_list_map non_target_source_files ~f:(fun path ->
+        let ctx_path = Path.Build.append_source ctx_dir path in
         let build =
           Action_builder.of_thunk
             { f =
                 (fun mode ->
-                  let path = Path.source path' in
+                  let path = Path.source path in
                   let+ fact = eval_source_file mode path in
                   ( Action.Full.make
                       (Action.copy path ctx_path)
@@ -340,7 +340,7 @@ end = struct
                   , Dep.Map.singleton (Dep.file path) fact ))
             }
         in
-        Rule.make ~context:None ~info:(Source_file_copy path')
+        Rule.make ~context:None ~info:(Source_file_copy path)
           ~targets:(Targets.File.create ctx_path)
           build)
 
@@ -376,8 +376,6 @@ end = struct
     { Loaded.by_file_targets; by_directory_targets }
 
   let lookup_alias alias =
-    (*     Dune_util.Log.info [ Pp.textf "TODO6" ];
- *)
     load_dir ~dir:(Path.build (Alias.dir alias)) >>| function
     | Source _ | External _ ->
       Code_error.raise "Alias in a non-build dir"
@@ -489,8 +487,6 @@ end = struct
       else
         Restricted
           (Memo.Lazy.create ~name:"allowed_dirs" (fun () ->
-               (*   Dune_util.Log.info [ Pp.textf "TODO7" ];
- *)
                load_dir ~dir:(Path.build dir) >>| function
                | External _ | Source _ -> Dir_set.just_the_root
                | Build { allowed_subdirs; _ } ->
@@ -905,8 +901,6 @@ let get_rule_internal path =
   load_dir ~dir:(Path.build dir) >>= function
   | External _ | Source _ -> assert false
   | Build { rules_here; _ } -> (
-    (* Dune_util.Log.info
-       [ Pp.textf "get_rule_internal %s\n" (Path.Build.to_string path) ]; *)
     match Path.Build.Map.find rules_here.by_file_targets path with
     | Some _ as rule -> Memo.return rule
     | None ->

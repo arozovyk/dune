@@ -1014,8 +1014,6 @@ end = struct
 
     let eval_impl g =
       let dir = File_selector.dir g in
-      (*       Dune_util.Log.info [ Pp.textf "TODO2" ];
- *)
       Load_rules.load_dir ~dir >>= function
       | Source { files } ->
         Path.set_of_source_paths files
