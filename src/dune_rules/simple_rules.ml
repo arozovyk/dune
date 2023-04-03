@@ -190,8 +190,7 @@ let copy_files sctx ~dir ~expander ~src_dir (def : Copy_files.t) =
       ];
   (* add rules *)
   let* files =
-    Build_system.eval_pred
-      (File_selector.of_glob ~dir:src_in_build glob "copy_files")
+    Build_system.eval_pred (File_selector.of_glob ~dir:src_in_build glob)
   in
   (* CR-someday amokhov: We currently traverse the set [files] twice: first, to
      add the corresponding rules, and then to convert the files to [targets]. To

@@ -94,8 +94,8 @@ module Without_vars = struct
       let make_file_selector relative_dir =
         let dir = Path.Build.relative base_dir relative_dir in
         File_selector.of_glob ~dir:(Path.build dir) glob
-          "file_selectors_with_relative_dirs"
       in
+
       if recursive then
         get_descendants_of_relative_dir_relative_to_base_dir_local ~base_dir
           ~relative_dir
@@ -110,10 +110,7 @@ module Without_vars = struct
           [ Pp.textf "Absolute paths in recursive globs are not supported." ]
       else
         Memo.return
-          [ ( File_selector.of_glob ~dir:(Path.of_string dir) glob
-                "file_selectors_with_relative_dirs2"
-            , dir )
-          ]
+          [ (File_selector.of_glob ~dir:(Path.of_string dir) glob, dir) ]
 end
 
 module Expand = struct

@@ -20,7 +20,7 @@ let add_obj_dir sctx ~obj_dir mode =
           | `Melange -> Obj_dir.melange_dir obj_dir
           | `Ocaml -> Obj_dir.byte_dir obj_dir)
       in
-      File_selector.create ~dir dev_files "add_obj_dir"
+      File_selector.create ~dir dev_files
     in
     (* Dune_util.Log.info
        [ Pp.textf "Creates fs %s \n"

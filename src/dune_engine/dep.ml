@@ -316,8 +316,7 @@ module Set = struct
      directories in directories that contain no file. *)
   let dir_without_files_dep dir =
     file_selector
-      (File_selector.create ~dir File_selector.Predicate_with_id.false_
-         "dir_without_files_dep")
+      (File_selector.create ~dir File_selector.Predicate_with_id.false_)
 
   module Source_tree_map_reduce =
     Source_tree.Dir.Make_map_reduce (Memo) (Monoid.Union (M))

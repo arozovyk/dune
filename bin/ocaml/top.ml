@@ -135,7 +135,6 @@ module Module = struct
                   Dune_engine.File_selector.of_glob
                     ~dir:(Path.build (Obj_dir.byte_dir private_obj_dir))
                     (Dune_lang.Glob.of_string_exn Loc.none "*.cmi")
-                    "module_directives"
                 in
                 let+ (_ : Dep.Fact.Files.t) = Build_system.build_pred glob in
                 ()

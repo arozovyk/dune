@@ -12,7 +12,7 @@ module For_stanza : sig
     }
 
   val of_stanzas :
-        Stanza.t list
+       Stanza.t list
     -> cctxs:(Loc.t * Compilation_context.t) list
     -> sctx:Super_context.t
     -> src_dir:Path.Source.t
@@ -61,8 +61,8 @@ end = struct
     ; source_dirs = List.rev t.source_dirs
     }
 
-  let of_stanza  stanza ~sctx ~src_dir ~ctx_dir ~scope
-      ~dir_contents ~expander ~files_to_install =
+  let of_stanza stanza ~sctx ~src_dir ~ctx_dir ~scope ~dir_contents ~expander
+      ~files_to_install =
     let dir = ctx_dir in
     match stanza with
     | Toplevel toplevel ->
@@ -96,9 +96,7 @@ end = struct
       | true ->
         let* () = Memo.Option.iter exes.install_conf ~f:files_to_install in
         let+ cctx, merlin =
-          Exe_rules.rules
-            
-            exes ~sctx ~dir ~scope ~expander ~dir_contents
+          Exe_rules.rules exes ~sctx ~dir ~scope ~expander ~dir_contents
         in
         { merlin = Some merlin
         ; cctx = Some (exes.buildable.loc, cctx)
@@ -158,11 +156,11 @@ end = struct
       }
     | _ -> Memo.return empty_none
 
-  let of_stanzas  stanzas ~cctxs ~sctx ~src_dir ~ctx_dir
-      ~scope ~dir_contents ~expander ~files_to_install =
+  let of_stanzas stanzas ~cctxs ~sctx ~src_dir ~ctx_dir ~scope ~dir_contents
+      ~expander ~files_to_install =
     let of_stanza =
-      of_stanza  ~sctx ~src_dir ~ctx_dir ~scope
-        ~dir_contents ~expander ~files_to_install
+      of_stanza ~sctx ~src_dir ~ctx_dir ~scope ~dir_contents ~expander
+        ~files_to_install
     in
     let+ l = Memo.parallel_map stanzas ~f:of_stanza in
     List.fold_left l ~init:{ empty_list with cctx = cctxs } ~f:(fun acc x ->
@@ -204,13 +202,12 @@ let define_all_alias ~dir ~project ~js_targets =
     in
     let only_generated_files = Dune_project.dune_version project >= (3, 0) in
     File_selector.create ~dir:(Path.build dir) ~only_generated_files pred
-      "define_all_alias"
     |> Action_builder.paths_matching_unit ~loc:Loc.none
   in
 
   Rules.Produce.Alias.add_deps (Alias.all ~dir) deps
 
-let gen_rules  sctx dir_contents cctxs expander
+let gen_rules sctx dir_contents cctxs expander
     { Dune_file.dir = src_dir; stanzas; project } ~dir:ctx_dir =
   (* Dune_util.Log.info
      [ Pp.textf "gen_rules222  %s" (Path.Build.to_string ctx_dir) ];
@@ -242,10 +239,8 @@ let gen_rules  sctx dir_contents cctxs expander
        ; source_dirs
        } =
     let* scope = Scope.DB.find_by_dir ctx_dir in
-    For_stanza.of_stanzas
-      
-      stanzas ~cctxs ~sctx ~src_dir ~ctx_dir ~scope ~dir_contents ~expander
-      ~files_to_install
+    For_stanza.of_stanzas stanzas ~cctxs ~sctx ~src_dir ~ctx_dir ~scope
+      ~dir_contents ~expander ~files_to_install
   in
   let* () =
     Memo.sequential_iter merlins ~f:(fun merlin ->
@@ -323,7 +318,7 @@ let collect_directory_targets ~init ~dir =
                    ])
         | _ -> acc)
 
-let gen_rules  sctx dir_contents cctxs ~source_dir ~dir :
+let gen_rules sctx dir_contents cctxs ~source_dir ~dir :
     (Loc.t * Compilation_context.t) list Memo.t =
   let* expander =
     let+ expander = Super_context.expander sctx ~dir in
@@ -332,9 +327,7 @@ let gen_rules  sctx dir_contents cctxs ~source_dir ~dir :
   let* () = Cram_rules.rules ~sctx ~expander ~dir tests in
   let* () = Format_rules.setup_alias sctx ~dir in
   Only_packages.stanzas_in_dir dir >>= function
-  | Some d ->
-    gen_rules  sctx dir_contents cctxs expander
-      d ~dir
+  | Some d -> gen_rules sctx dir_contents cctxs expander d ~dir
   | None ->
     let* scope = Scope.DB.find_by_dir dir in
     let project = Scope.project scope in
@@ -487,8 +480,7 @@ let gen_melange_emit_rules_or_empty_redirect sctx ~dir = function
 
 (* Once [gen_rules] has decided what to do with the directory, it should end
    with [has_rules] or [redirect_to_parent] *)
-let gen_rules   ~sctx ~dir components :
-    Build_config.gen_rules_result Memo.t =
+let gen_rules ~sctx ~dir components : Build_config.gen_rules_result Memo.t =
   let module S = Subdir_set in
   match components with
   | [ ".dune"; "ccomp" ] ->
@@ -571,14 +563,11 @@ let gen_rules   ~sctx ~dir components :
                        (Source_tree.Dir.to_dyn source_dir |> Dyn.to_string)
                        (Path.Build.to_string (Dir_contents.dir dir_contents))
                    ]; *)
-                let* cctxs =
-                  gen_rules  sctx dir_contents []
-                    ~source_dir ~dir
-                in
+                let* cctxs = gen_rules sctx dir_contents [] ~source_dir ~dir in
                 Memo.parallel_iter subdirs ~f:(fun dc ->
                     let+ (_ : (Loc.t * Compilation_context.t) list) =
-                      gen_rules  sctx dir_contents cctxs
-                        ~source_dir ~dir:(Dir_contents.dir dc)
+                      gen_rules sctx dir_contents cctxs ~source_dir
+                        ~dir:(Dir_contents.dir dc)
                     in
                     ()))
           in
@@ -636,7 +625,7 @@ let with_context ctx ~f =
   | None -> Memo.return Build_config.Unknown_context_or_install
   | Some ctx -> f ctx
 
-let gen_rules  ctx_or_install ~dir components =
+let gen_rules ctx_or_install ~dir components =
   (* Dune_util.Log.info
      [ Pp.textf "gen rules 3  %s components (%s)" (Path.Build.to_string dir)
          (String.concat ~sep:"" components)
@@ -652,5 +641,4 @@ let gen_rules  ctx_or_install ~dir components =
           ; rules = Memo.return rules
           })
   | Context ctx ->
-    with_context ctx ~f:(fun sctx ->
-        gen_rules  ~sctx ~dir components)
+    with_context ctx ~f:(fun sctx -> gen_rules ~sctx ~dir components)
