@@ -90,8 +90,7 @@ val bin_annot : t -> dir:Path.Build.t -> bool Memo.t
 val dump_env : t -> dir:Path.Build.t -> Dune_lang.t list Action_builder.t
 
 val add_rule :
-     ?from:string
-  -> t
+     t
   -> ?mode:Rule.Mode.t
   -> ?loc:Loc.t
   -> dir:Path.Build.t

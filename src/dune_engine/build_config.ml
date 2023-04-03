@@ -44,8 +44,7 @@ type gen_rules_result =
 
 module type Rule_generator = sig
   val gen_rules :
-       ?from:string
-    -> Context_or_install.t
+        Context_or_install.t
     -> dir:Path.Build.t
     -> string list
     -> gen_rules_result Memo.t

@@ -92,9 +92,8 @@ let o_files sctx ~dir ~expander ~(exes : Executables.t) ~linkages ~dir_contents
     (* [foreign_o_files] are not mode-dependent *)
     Mode.Map.Multi.add_all o_files All foreign_o_files
 
-let executables_rules ?(from = "unknown") ~sctx ~dir ~expander ~dir_contents
-    ~scope ~compile_info ~embed_in_plugin_libraries
-    (exes : Dune_file.Executables.t) =
+let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
+    ~embed_in_plugin_libraries (exes : Dune_file.Executables.t) =
   (* Use "eobjs" rather than "objs" to avoid a potential conflict with a library
      of the same name *)
   let* modules, obj_dir =
@@ -126,11 +125,10 @@ let executables_rules ?(from = "unknown") ~sctx ~dir ~expander ~dir_contents
         Option.some_if (List.exists linkages ~f:Exe.Linkage.is_js) js_of_ocaml
       else Some js_of_ocaml
     in
-    Compilation_context.create
-      ~from:(from ^ "->executables_rules")
-      () ~loc:exes.buildable.loc ~super_context:sctx ~expander ~scope ~obj_dir
-      ~modules ~flags ~requires_link ~requires_compile ~preprocessing:pp
-      ~js_of_ocaml ~opaque:Inherit_from_settings ~package:exes.package
+    Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
+      ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
+      ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
+      ~package:exes.package
   in
 
   let stdlib_dir = ctx.Context.stdlib_dir in
@@ -222,11 +220,8 @@ let executables_rules ?(from = "unknown") ~sctx ~dir ~expander ~dir_contents
     let buildable = exes.buildable in
     match buildable.ctypes with
     | None ->
-      let values = Mode.Map.values o_files in
-      Exe.build_and_link_many
-        ~from:((List.length values |> Int.to_string) ^ "executable_rules220")
-        cctx ~programs ~linkages ~link_args ~o_files ~promote:exes.promote
-        ~embed_in_plugin_libraries ~sandbox
+      Exe.build_and_link_many cctx ~programs ~linkages ~link_args ~o_files
+        ~promote:exes.promote ~embed_in_plugin_libraries ~sandbox
     | Some { version; _ } ->
       (* Ctypes stubgen builds utility .exe files that need to share modules
          with this compilation context. To support that, we extract the one-time
@@ -238,8 +233,8 @@ let executables_rules ?(from = "unknown") ~sctx ~dir ~expander ~dir_contents
         Ctypes_rules.gen_rules ~cctx ~buildable ~loc ~sctx ~scope ~dir ~version
       in
       let* () = Module_compilation.build_all cctx in
-      Exe.link_many ~from:"executable_rules" ~programs ~linkages ~link_args
-        ~o_files ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
+      Exe.link_many ~programs ~linkages ~link_args ~o_files
+        ~promote:exes.promote ~embed_in_plugin_libraries cctx ~sandbox
   in
   let+ () =
     Memo.parallel_iter dep_graphs.for_exes ~f:(fun x ->
@@ -270,13 +265,12 @@ let compile_info ~scope (exes : Dune_file.Executables.t) =
     ~allow_overlaps:exes.buildable.allow_overlapping_dependencies
     ~forbidden_libraries:exes.forbidden_libraries ~merlin_ident
 
-let rules ?(from = "unknown") ~sctx ~dir ~dir_contents ~scope ~expander
+let rules ~sctx ~dir ~dir_contents ~scope ~expander
     (exes : Dune_file.Executables.t) =
   let* compile_info = compile_info ~scope exes in
   let f () =
-    executables_rules ~from:(from ^ "->Exe_rules.rules") exes ~sctx ~dir
-      ~dir_contents ~scope ~expander ~compile_info
-      ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
+    executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
+      ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
   in
   (* here *)
   let* () = Buildable_rules.gen_select_rules sctx compile_info ~dir

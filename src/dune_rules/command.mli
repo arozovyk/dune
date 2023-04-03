@@ -70,7 +70,7 @@ module Args : sig
       expression. Use this function when the same subexpression appears in
       multiple [Command.Args.t] expressions to share both the time and memory
       required for the computation. *)
-  val memo : ?from:string -> without_targets t -> _ t
+  val memo :  without_targets t -> _ t
 
   val as_any : without_targets t -> any t
 end
@@ -80,7 +80,6 @@ end
 val run :
      ?module_name_built:string
   -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> ?from:string
   -> dir:Path.t
   -> ?sandbox:Sandbox_config.t
   -> ?stdout_to:Path.Build.t
@@ -112,7 +111,6 @@ end
 val expand :
      ?module_name_built:string
   -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> ?from:string
   -> dir:Path.t
   -> 'a Args.t
   -> string list Action_builder.With_targets.t
@@ -123,7 +121,6 @@ val expand :
 val expand_no_targets :
      ?module_name_built:string
   -> ?deps:(string * string list Action_builder.t) list Action_builder.t
-  -> ?from:string
   -> dir:Path.t
   -> Args.without_targets Args.t
   -> string list Action_builder.t

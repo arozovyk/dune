@@ -37,7 +37,7 @@ let rules ~sctx ~dir =
   let action =
     let open Action_builder.With_targets.O in
     let+ run_preprocessor =
-      Command.run  ~from:"cxx_rules.rules" ~dir:(Path.build dir) ~stdout_to:file prog args
+      Command.run    ~dir:(Path.build dir) ~stdout_to:file prog args
     in
     Action.Full.reduce [ Action.Full.make write_test_file; run_preprocessor ]
   in

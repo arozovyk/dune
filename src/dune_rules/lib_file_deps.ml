@@ -46,8 +46,7 @@ module Group = struct
     fun g -> Option.value_exn (List.assoc preds g)
 end
 
-let deps_of_lib ?(from = "unknown") (lib : Lib.t) ~groups =
-  let _ = from in
+let deps_of_lib (lib : Lib.t) ~groups =
   let obj_dir = Lib.info lib |> Lib_info.obj_dir in
   List.map groups ~f:(fun g ->
       let dir = Group.obj_dir g obj_dir in
@@ -65,5 +64,4 @@ let deps_of_lib ?(from = "unknown") (lib : Lib.t) ~groups =
 let deps_with_exts =
   Dep.Set.union_map ~f:(fun (lib, groups) -> deps_of_lib lib ~groups)
 
-let deps ?(from = "unkn") libs ~groups =
-  Dep.Set.union_map libs ~f:(deps_of_lib ~from:(from ^ "deps") ~groups)
+let deps libs ~groups = Dep.Set.union_map libs ~f:(deps_of_lib ~groups)

@@ -8,25 +8,21 @@ end
 
 let register_action_deps :
     type a.
-       ?from:string
-    -> ?external_deps:string list
-    -> a eval_mode
-    -> Dep.Set.t
-    -> a Dep.Map.t Memo.t =
- fun ?(from = "unknown") ?(external_deps = []) mode deps ->
+    ?external_deps:string list -> a eval_mode -> Dep.Set.t -> a Dep.Map.t Memo.t
+    =
+ fun ?(external_deps = []) mode deps ->
   match mode with
-  | Eager ->
-    Build_system.build_deps
-      ~from:(from ^ "->>register_action_deps ")
-      ~external_deps deps
+  | Eager -> Build_system.build_deps ~external_deps deps
   | Lazy -> Memo.return deps
 
-let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
-(*   Dune_util.Log.info [ Pp.textf "dyn_memo_deps_outside from : %s" from ];
- *)  let test =
+let dyn_memo_deps ?(external_deps = []) deps =
+  (*   Dune_util.Log.info [ Pp.textf "dyn_memo_deps_outside from : %s" from ];
+ *)
+  let test =
     Memo.bind deps ~f:(fun (_x, _) ->
-(*         Dune_util.Log.info [ Pp.textf "bra from : %s" from ];
- *)        Memo.return _x)
+        (*         Dune_util.Log.info [ Pp.textf "bra from : %s" from ];
+ *)
+        Memo.return _x)
   in
 
   let oft =
@@ -37,73 +33,62 @@ let dyn_memo_deps ?(from = "unknown") ?(external_deps = []) deps =
             let* deps2, paths = deps in
             let* _deps' = test in
 
-           (*  let dep_s dep =
-              let open Dep in
-              match dep with
-              | Env s -> "Env" ^ s
-              | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
-              | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
-              | File_selector (* of File_selector.t *) d ->
-                "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
-              | Universe -> "Universe"
-            in *)
-            let+ deps =
-              register_action_deps ~from:(from ^ "->dyn_memo_deps")
-                ~external_deps mode deps2
-            in
+            (* let dep_s dep =
+                 let open Dep in
+                 match dep with
+                 | Env s -> "Env" ^ s
+                 | File (* of Path.t *) p -> "File " ^ Dpath.describe_path p
+                 | Alias (*  of Alias.t *) a -> Alias.to_dyn a |> Dyn.to_string
+                 | File_selector (* of File_selector.t *) d ->
+                   "File_selector " ^ (File_selector.to_dyn d |> Dyn.to_string)
+                 | Universe -> "Universe"
+               in *)
+            let+ deps = register_action_deps ~external_deps mode deps2 in
+
             (* let is_dep_fact_t x = Obj.tag (Obj.repr x) in
 
-            let reg_deps = Dep.Map.keys deps in
-            let reg_depsv = Dep.Map.values deps in *)
+               let reg_deps = Dep.Map.keys deps in
+               let reg_depsv = Dep.Map.values deps in *)
 
-           (*  Dune_util.Log.info
-              [ Pp.textf
-                  "dyn_memo_deps_inside from : %s\n\n\
-                   dep arg   -> %s\n\
-                  \ keys after register %s\n\
-                  values after register %s\n"
-                  from
-                  (Dep.Set.to_dyn deps2 |> Dyn.to_string)
-                  (List.map reg_deps ~f:dep_s |> String.concat ~sep:",")
-                  (List.map reg_depsv ~f:(fun x ->
-                       is_dep_fact_t x |> Int.to_string)
-                  |> String.concat ~sep:",")
-              ]; *)
-
+            (* Dune_util.Log.info
+               [ Pp.textf
+                   "dyn_memo_deps_inside from : %s\n\n\
+                    dep arg   -> %s\n\
+                   \ keys after register %s\n\
+                   values after register %s\n"
+                   from
+                   (Dep.Set.to_dyn deps2 |> Dyn.to_string)
+                   (List.map reg_deps ~f:dep_s |> String.concat ~sep:",")
+                   (List.map reg_depsv ~f:(fun x ->
+                        is_dep_fact_t x |> Int.to_string)
+                   |> String.concat ~sep:",")
+               ]; *)
             (paths, deps))
       }
   in
   oft
 
-let deps ?(from = "unknown") ?(external_deps = []) d =
-  dyn_memo_deps ~from:(from ^ "->deps") ~external_deps (Memo.return (d, ()))
+let deps ?(external_deps = []) d =
+  dyn_memo_deps ~external_deps (Memo.return (d, ()))
 
 let dep d = deps (Dep.Set.singleton d)
 
-let dyn_deps ?((* ?(from = "unknown") *) external_deps = []) t =
+let dyn_deps ?((*  *) external_deps = []) t =
   of_thunk
     { f =
         (fun mode ->
           let open Memo.O in
           let* (x, deps), deps_x = run t mode in
 
-          let+ deps =
-            register_action_deps
-              ~from:
-                ("dyn_deps size"
-                ^ (List.length external_deps |> Int.to_string)
-                ^ "~>")
-              ~external_deps mode deps
-          in
+          let+ deps = register_action_deps ~external_deps mode deps in
           (x, Deps_or_facts.union mode deps deps_x))
     }
 
-let path ?(from = "unknown") p = deps ~from:(from^"->path") (Dep.Set.singleton (Dep.file p))
+let path p = deps (Dep.Set.singleton (Dep.file p))
 
-let paths ?(from = "unkown") ?(external_deps = []) ps =
-  deps ~from:(from ^ "->paths") ~external_deps (Dep.Set.of_files ps)
+let paths ?(external_deps = []) ps = deps ~external_deps (Dep.Set.of_files ps)
 
-let path_set ps = deps ~from:"path_set" (Dep.Set.of_files_set ps)
+let path_set ps = deps (Dep.Set.of_files_set ps)
 
 let paths_matching :
     type a. File_selector.t -> a eval_mode -> (Path.Set.t * a Dep.Map.t) Memo.t
@@ -114,7 +99,7 @@ let paths_matching :
   | Eager ->
     let+ files = Build_system.build_pred g in
     ( Path.Map.keys (Dep.Fact.Files.paths files) |> Path.Set.of_list
-    , Dep.Map.singleton (Dep.file_selector g) (Dep.Fact.file_selector ~from:"paths_matching" g files)
+    , Dep.Map.singleton (Dep.file_selector g) (Dep.Fact.file_selector g files)
     )
   | Lazy ->
     let+ files = Build_system.eval_pred g in
@@ -137,7 +122,7 @@ let dyn_path_set paths =
 let dyn_path_set_reuse paths =
   dyn_deps (paths >>| fun paths -> (paths, Dep.Set.of_files_set paths))
 
-let env_var s = deps ~from:"env_var" (Dep.Set.singleton (Dep.env s))
+let env_var s = deps (Dep.Set.singleton (Dep.env s))
 
 let alias a = dep (Dep.alias a)
 

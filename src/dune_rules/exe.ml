@@ -131,9 +131,8 @@ end
 let exe_path_from_name cctx ~name ~(linkage : Linkage.t) =
   Path.Build.relative (CC.dir cctx) (name ^ linkage.ext)
 
-let link_exe ?(from = "unknown") ~loc ~name ~(linkage : Linkage.t) ~cm_files
-    ~link_time_code_gen ~promote ~link_args ~o_files
-    ?(sandbox = Sandbox_config.default) cctx unit =
+let link_exe ~loc ~name ~(linkage : Linkage.t) ~cm_files ~link_time_code_gen
+    ~promote ~link_args ~o_files ?(sandbox = Sandbox_config.default) cctx unit =
   let sctx = CC.super_context cctx in
   let ctx = Super_context.context sctx in
   let dir = CC.dir cctx in
@@ -242,8 +241,7 @@ let link_exe ?(from = "unknown") ~loc ~name ~(linkage : Linkage.t) ~cm_files
     in
 
     Action_builder.with_no_targets prefix
-    >>> Command.run ~deps:ext_dep_graph ~from:(from ^ "->link_exe")
-          ~dir:(Path.build ctx.build_dir)
+    >>> Command.run ~deps:ext_dep_graph ~dir:(Path.build ctx.build_dir)
           (Context.compiler ctx mode)
           [ Command.Args.dyn ocaml_flags
           ; A "-o"
@@ -289,9 +287,7 @@ let link_js ~name ~loc ~obj_dir ~top_sorted_modules ~link_args ~promote
     Action_builder.bind link_args ~f:(fun cmd ->
         let open Action_builder.O in
         let+ l =
-          Command.expand_no_targets ~from:"linkjs"
-            ~dir:(Path.build (CC.dir cctx))
-            cmd
+          Command.expand_no_targets ~dir:(Path.build (CC.dir cctx)) cmd
         in
         List.exists l ~f:(String.equal "-linkall"))
   in
@@ -300,8 +296,7 @@ let link_js ~name ~loc ~obj_dir ~top_sorted_modules ~link_args ~promote
 
 type dep_graphs = { for_exes : Module.t list Action_builder.t list }
 
-let link_many ?(from = "unknown")
-    ?(link_args = Action_builder.return Command.Args.empty) ?o_files
+let link_many ?(link_args = Action_builder.return Command.Args.empty) ?o_files
     ?(embed_in_plugin_libraries = []) ?sandbox ~programs ~linkages ~promote cctx
     =
   let open Memo.O in
@@ -360,31 +355,23 @@ let link_many ?(from = "unknown")
                   | Byte | Byte_for_jsoo | Byte_with_stubs_statically_linked_in
                     -> (link_args, select_o_files Mode.Byte)
                 in
-                link_exe
-                  ~from:
-                    (from ^ "->link_many"
-                    ^ (List.length o_files |> Int.to_string))
-                  cctx main ~loc ~name ~linkage ~cm_files ~link_time_code_gen
-                  ~promote ~link_args ~o_files ?sandbox)
+                link_exe cctx main ~loc ~name ~linkage ~cm_files
+                  ~link_time_code_gen ~promote ~link_args ~o_files ?sandbox)
         in
         top_sorted_modules)
   in
   { for_exes }
 
-let build_and_link_many ?(from = "unkn") ?link_args ?o_files
-    ?embed_in_plugin_libraries ?sandbox ~programs ~linkages ~promote cctx =
+let build_and_link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
+    ~programs ~linkages ~promote cctx =
   let open Memo.O in
   let* () = Module_compilation.build_all cctx in
-  link_many
-    ~from:(from ^ "->build_and_link_many")
-    ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox ~programs ~linkages
-    ~promote cctx
+  link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox ~programs
+    ~linkages ~promote cctx
 
-let build_and_link ?(from = "unkn") ?link_args ?o_files
-    ?embed_in_plugin_libraries ?sandbox ~program ~linkages ~promote cctx =
-  build_and_link_many
-    ~from:(from ^ "->build_and_link")
-    ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
+let build_and_link ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
+    ~program ~linkages ~promote cctx =
+  build_and_link_many ?link_args ?o_files ?embed_in_plugin_libraries ?sandbox
     ~programs:[ program ] ~linkages ~promote cctx
 
 let exe_path cctx ~(program : Program.t) ~linkage =
