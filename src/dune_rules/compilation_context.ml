@@ -3,61 +3,61 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
+  let filter_with_odeps libs deps md =
+    let open Resolve.Memo.O in
+    let+ module_deps, _ = deps in
+    let external_dep_names =
+      List.filter_map ~f:Module_dep.filter_external module_deps
+      |> List.map ~f:Module_dep.External_name.to_string
+    in
+    (* Find a more general way to compare [ocamldep] output to Lib_name (?) *)
+    List.filter libs ~f:(fun lib ->
+        if Lib.is_local lib then (
+          let lib_name =
+            Lib.name lib |> Lib_name.to_string |> String.capitalize
+          in
+          Dune_util.Log.info
+            [ Pp.textf "For module %s\n"
+                (Module.name md |> Module_name.to_string)
+            ];
+          let exists_in_odeps lib_name =
+            List.exists external_dep_names ~f:(fun odep ->
+                Dune_util.Log.info
+                  [ Pp.textf "Comparing %s %s \n" lib_name odep ];
+                String.equal lib_name odep
+                || String.is_prefix ~prefix:odep lib_name)
+          in
+          let exists = exists_in_odeps lib_name in
+          let exists2 =
+            match String.split ~on:'.' lib_name with
+            | t ->
+              List.exists t ~f:(fun lib_name ->
+                  exists_in_odeps (String.capitalize lib_name))
+          in
+          if not exists then
+            Dune_util.Log.info [ Pp.textf "False for exists %s \n" lib_name ];
+          if not exists2 then
+            Dune_util.Log.info [ Pp.textf "False for exists2 %s \n" lib_name ];
+          (* Replace '.' by '_' *)
+          let lib_name_undescore =
+            String.extract_words
+              ~is_word_char:(fun c -> not (Char.equal c '.'))
+              lib_name
+            |> String.concat ~sep:"_"
+          in
+          let exists3 = exists_in_odeps lib_name_undescore in
+          if not exists3 then
+            Dune_util.Log.info
+              [ Pp.textf "Transformed word %s \n" lib_name_undescore ];
+          let keep = exists || exists2 || exists3 in
+          if not keep then
+            Dune_util.Log.info [ Pp.textf "Removing %s \n" lib_name ];
+          keep)
+        else true)
+
   let make ~project ~opaque ~requires ~md ~dep_graphs =
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let filter_with_odeps libs deps =
-      let+ module_deps, _ = deps in
-      let external_dep_names =
-        List.filter_map ~f:Module_dep.filter_external module_deps
-        |> List.map ~f:Module_dep.External_name.to_string
-      in
-      (* Find a more general way to compare [ocamldep] output to Lib_name (?) *)
-      List.filter libs ~f:(fun lib ->
-          if Lib.is_local lib then (
-            let lib_name =
-              Lib.name lib |> Lib_name.to_string |> String.capitalize
-            in
-            Dune_util.Log.info
-              [ Pp.textf "For module %s\n"
-                  (Module.name md |> Module_name.to_string)
-              ];
-            let exists_in_odeps lib_name =
-              List.exists external_dep_names ~f:(fun odep ->
-                  Dune_util.Log.info
-                    [ Pp.textf "Comparing %s %s \n" lib_name odep ];
-                  String.equal lib_name odep
-                  || String.is_prefix ~prefix:odep lib_name)
-            in
-            let exists = exists_in_odeps lib_name in
-            let exists2 =
-              match String.split ~on:'.' lib_name with
-              | t ->
-                List.exists t ~f:(fun lib_name ->
-                    exists_in_odeps (String.capitalize lib_name))
-            in
-            if not exists then
-              Dune_util.Log.info [ Pp.textf "False for exists %s \n" lib_name ];
-            if not exists2 then
-              Dune_util.Log.info [ Pp.textf "False for exists2 %s \n" lib_name ];
-            (* Replace '.' by '_' *)
-            let lib_name_undescore =
-              String.extract_words
-                ~is_word_char:(fun c -> not (Char.equal c '.'))
-                lib_name
-              |> String.concat ~sep:"_"
-            in
-            let exists3 = exists_in_odeps lib_name_undescore in
-            if not exists3 then
-              Dune_util.Log.info
-                [ Pp.textf "Transformed word %s \n" lib_name_undescore ];
-            let keep = exists || exists2 || exists3 in
-            if not keep then
-              Dune_util.Log.info [ Pp.textf "Removing %s \n" lib_name ];
-            keep)
-          else true)
-    in
-
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let deps =
       let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
@@ -74,7 +74,7 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs = filter_with_odeps libs deps in
+            let+ libs = filter_with_odeps libs deps md in
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -85,7 +85,7 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs = filter_with_odeps libs deps in
+            let+ libs = filter_with_odeps libs deps md in
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
