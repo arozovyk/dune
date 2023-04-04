@@ -30,28 +30,16 @@ module Includes = struct
                   || String.is_prefix ~prefix:odep lib_name)
             in
             let exists = exists_in_odeps lib_name in
-
             let exists2 =
               match String.split ~on:'.' lib_name with
               | t ->
                 List.exists t ~f:(fun lib_name ->
                     exists_in_odeps (String.capitalize lib_name))
             in
-
             if not exists then
-              Dune_util.Log.info
-                [ Pp.textf "False for exists %s local name %s odeps %s \n"
-                    lib_name
-                    (Lib.name lib |> Lib_name.to_dyn |> Dyn.to_string)
-                    (String.concat external_dep_names ~sep:",\n")
-                ];
+              Dune_util.Log.info [ Pp.textf "False for exists %s \n" lib_name ];
             if not exists2 then
-              Dune_util.Log.info
-                [ Pp.textf "False for exists2 %s local name %s odeps %s \n"
-                    lib_name
-                    (Lib.name lib |> Lib_name.to_dyn |> Dyn.to_string)
-                    (String.concat external_dep_names ~sep:",\n")
-                ];
+              Dune_util.Log.info [ Pp.textf "False for exists2 %s \n" lib_name ];
             (* Replace '.' by '_' *)
             let lib_name_undescore =
               String.extract_words
@@ -62,7 +50,7 @@ module Includes = struct
             let exists3 = exists_in_odeps lib_name_undescore in
             if not exists3 then
               Dune_util.Log.info
-                [ Pp.textf " Extracted words %s \n" lib_name_undescore ];
+                [ Pp.textf "Transformed word %s \n" lib_name_undescore ];
             let keep = exists || exists2 || exists3 in
             if not keep then
               Dune_util.Log.info [ Pp.textf "Removing %s \n" lib_name ];
@@ -72,9 +60,14 @@ module Includes = struct
 
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let deps =
-      let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-      let module_deps = Dep_graph.deps_of dep_graph md in
-      Action_builder.run module_deps Action_builder.Eager
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
+      Action_builder.run
+        (Action_builder.map2 module_deps_impl module_deps_intf
+           ~f:(fun inft impl -> List.append inft impl))
+        Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
     let make_includes_args ~mode groups =
