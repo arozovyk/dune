@@ -14,12 +14,27 @@ module Includes = struct
       in
       (* Find a more general way to compare [ocamldep] output to Lib_name (?) *)
       List.filter libs ~f:(fun lib ->
-          if Lib.is_local lib then
+          if Lib.is_local lib then (
             let lib_name =
               Lib.name lib |> Lib_name.to_string |> String.capitalize
             in
-            List.exists external_dep_names ~f:(fun odep ->
-                String.equal lib_name odep)
+            Dune_util.Log.info
+              [ Pp.textf "For module %s\n"
+                  (Module.name md |> Module_name.to_string)
+              ];
+            let exists =
+              List.exists external_dep_names ~f:(fun odep ->
+                  Dune_util.Log.info
+                    [ Pp.textf "Comparing %s %s \n" lib_name odep ];
+                  String.equal lib_name odep)
+            in
+            if not exists then
+              Dune_util.Log.info
+                [ Pp.textf "False for %s local name %s odeps %s \n" lib_name
+                    (Lib.name lib |> Lib_name.to_dyn |> Dyn.to_string)
+                    (String.concat external_dep_names ~sep:",\n")
+                ];
+            exists)
           else true)
     in
 
