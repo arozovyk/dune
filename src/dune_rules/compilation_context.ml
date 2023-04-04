@@ -26,16 +26,16 @@ module Includes = struct
               List.exists external_dep_names ~f:(fun odep ->
                   Dune_util.Log.info
                     [ Pp.textf "Comparing %s %s \n" lib_name odep ];
-                  String.equal lib_name odep)
+                  String.equal lib_name odep
+                  || String.is_prefix ~prefix:odep lib_name)
             in
             let exists = exists_in_odeps lib_name in
 
             let exists2 =
               match String.split ~on:'.' lib_name with
-              | _ :: t ->
+              | t ->
                 List.exists t ~f:(fun lib_name ->
                     exists_in_odeps (String.capitalize lib_name))
-              | [] -> false
             in
 
             if not exists then
