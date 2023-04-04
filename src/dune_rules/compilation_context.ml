@@ -6,27 +6,23 @@ module Includes = struct
   let make ~project ~opaque ~requires ~md ~dep_graphs =
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let filter_with_odeps ?(from = "unk") libs deps =
+    let filter_with_odeps libs deps =
       let+ module_deps, _ = deps in
       let external_dep_names =
         List.filter_map ~f:Module_dep.filter_external module_deps
         |> List.map ~f:Module_dep.External_name.to_string
       in
-     (*  Dune_util.Log.info
-        [ Pp.textf
-            "Module_compiled (%s) libs before  (%s) odeplist [%s]  lst {%s}\n"
-            (Module.name md |> Module_name.to_string)
-            from
-            (String.concat external_dep_names ~sep:",\n")
-            (Lib_flags.L.to_string_list libs |> String.concat ~sep:",\n")
-        ]; *)
-      if List.is_empty external_dep_names then Lib_flags.L.empty
-      else
-        List.fold_map external_dep_names ~init:libs ~f:(fun b a ->
-            let filtered = Lib_flags.L.filter_by_name b a in
-            (filtered, a))
-        |> fst
+      (* Find a more general way to compare [ocamldep] output to Lib_name (?) *)
+      List.filter libs ~f:(fun lib ->
+          if Lib.is_local lib then
+            let lib_name =
+              Lib.name lib |> Lib_name.to_string |> String.capitalize
+            in
+            List.exists external_dep_names ~f:(fun odep ->
+                String.equal lib_name odep)
+          else true)
     in
+
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     let deps =
       let dep_graph = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
@@ -38,9 +34,7 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs =
-              filter_with_odeps ~from:"make_includes_args" libs deps
-            in
+            let+ libs = filter_with_odeps libs deps in
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -51,7 +45,7 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs = filter_with_odeps ~from:"cmx_includes" libs deps in
+            let+ libs = filter_with_odeps libs deps in
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps

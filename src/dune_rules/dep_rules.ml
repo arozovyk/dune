@@ -158,13 +158,12 @@ let for_module md module_ =
 
 let rules md =
   let modules = md.modules in
-  match Modules.as_singleton modules with
-  | Some m -> Memo.return (Dep_graph.Ml_kind.dummy m)
-  | None ->
-    dict_of_func_concurrently (fun ~ml_kind ->
-        let+ per_module =
-          Modules.obj_map modules
-          |> Module_name.Unique.Map_traversals.parallel_map
-               ~f:(fun _obj_name m -> deps_of md ~ml_kind m)
-        in
-        Dep_graph.make ~dir:md.dir ~per_module)
+  (* Force calling ocamldep even for singletons,
+     since we want non local lib deps to be present in the graph *)
+  dict_of_func_concurrently (fun ~ml_kind ->
+      let+ per_module =
+        Modules.obj_map modules
+        |> Module_name.Unique.Map_traversals.parallel_map ~f:(fun _obj_name m ->
+               deps_of md ~ml_kind m)
+      in
+      Dep_graph.make ~dir:md.dir ~per_module)
