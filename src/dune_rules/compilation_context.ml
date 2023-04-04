@@ -22,19 +22,51 @@ module Includes = struct
               [ Pp.textf "For module %s\n"
                   (Module.name md |> Module_name.to_string)
               ];
-            let exists =
+            let exists_in_odeps lib_name =
               List.exists external_dep_names ~f:(fun odep ->
                   Dune_util.Log.info
                     [ Pp.textf "Comparing %s %s \n" lib_name odep ];
                   String.equal lib_name odep)
             in
+            let exists = exists_in_odeps lib_name in
+
+            let exists2 =
+              match String.split ~on:'.' lib_name with
+              | _ :: t ->
+                List.exists t ~f:(fun lib_name ->
+                    exists_in_odeps (String.capitalize lib_name))
+              | [] -> false
+            in
+
             if not exists then
               Dune_util.Log.info
-                [ Pp.textf "False for %s local name %s odeps %s \n" lib_name
+                [ Pp.textf "False for exists %s local name %s odeps %s \n"
+                    lib_name
                     (Lib.name lib |> Lib_name.to_dyn |> Dyn.to_string)
                     (String.concat external_dep_names ~sep:",\n")
                 ];
-            exists)
+            if not exists2 then
+              Dune_util.Log.info
+                [ Pp.textf "False for exists2 %s local name %s odeps %s \n"
+                    lib_name
+                    (Lib.name lib |> Lib_name.to_dyn |> Dyn.to_string)
+                    (String.concat external_dep_names ~sep:",\n")
+                ];
+            (* Replace '.' by '_' *)
+            let lib_name_undescore =
+              String.extract_words
+                ~is_word_char:(fun c -> not (Char.equal c '.'))
+                lib_name
+              |> String.concat ~sep:"_"
+            in
+            let exists3 = exists_in_odeps lib_name_undescore in
+            if not exists3 then
+              Dune_util.Log.info
+                [ Pp.textf " Extracted words %s \n" lib_name_undescore ];
+            let keep = exists || exists2 || exists3 in
+            if not keep then
+              Dune_util.Log.info [ Pp.textf "Removing %s \n" lib_name ];
+            keep)
           else true)
     in
 
