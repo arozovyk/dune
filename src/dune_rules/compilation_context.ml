@@ -3,6 +3,8 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
+  let patched = true
+
   let filter_with_odeps libs deps md =
     let open Resolve.Memo.O in
     let+ module_deps, _ = deps in
@@ -74,7 +76,8 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs = filter_with_odeps libs deps md in
+            let+ libs' = filter_with_odeps libs deps md in
+            let libs = if patched then libs' else libs in
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -85,7 +88,8 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs = filter_with_odeps libs deps md in
+            let+ libs' = filter_with_odeps libs deps md in
+            let libs = if patched then libs' else libs in
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
