@@ -123,14 +123,14 @@ let deps_of
               | _ -> None)
         in
         let transitive = transitive_deps local in
-        let modnameuniq =
+        let mods_name_uniq =
           List.map immediate_deps ~f:(fun m ->
               match m with
               | Module_dep.Local m ->
                 Module.obj_name m |> Module_name.Unique.to_string
               | External s -> Module_dep.External_name.to_string s)
         in
-        (transitive, modnameuniq)
+        (transitive, mods_name_uniq)
       in
       Action_builder.with_file_targets ~file_targets:[ all_deps_file ]
         (let+ sources, extras =

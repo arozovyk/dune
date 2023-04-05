@@ -158,8 +158,8 @@ let for_module md module_ =
 
 let rules md =
   let modules = md.modules in
-  (* Force calling ocamldep even for singletons,
-     since we want non local lib deps to be present in the graph *)
+  (* Force calling ocamldep even for singletons
+     since we want lib dependencies to be in the graph *)
   dict_of_func_concurrently (fun ~ml_kind ->
       let+ per_module =
         Modules.obj_map modules
