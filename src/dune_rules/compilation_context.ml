@@ -37,9 +37,9 @@ module Includes = struct
                   exists_in_odeps (String.capitalize lib_name))
           in
           if not exists then
-            Dune_util.Log.info [ Pp.textf "False for exists %s \n" lib_name ];
+            Dune_util.Log.info [ Pp.textf "False for full name %s \n" lib_name ];
           if not exists2 then
-            Dune_util.Log.info [ Pp.textf "False for exists2 %s \n" lib_name ];
+            Dune_util.Log.info [ Pp.textf "False for split %s \n" lib_name ];
           (* Replace '.' by '_' *)
           let lib_name_undescore =
             String.extract_words
@@ -50,7 +50,17 @@ module Includes = struct
           let exists3 = exists_in_odeps lib_name_undescore in
           if not exists3 then
             Dune_util.Log.info
-              [ Pp.textf "Transformed word %s \n" lib_name_undescore ];
+              [ Pp.textf "False for custom name, replacing . with _ %s \n"
+                  lib_name_undescore
+              ];
+          (* (let local_name =
+               match
+                 Lib_name.to_local (Lib.info lib |> Lib_info.loc, Lib.name lib)
+               with
+               | Ok libname -> Lib_name.Local.to_string libname
+               | Error e -> User_message.to_string e
+             in
+             Dune_util.Log.info [ Pp.textf "Local_name :  %s \n" local_name ]); *)
           let keep = exists || exists2 || exists3 in
           if not keep then
             Dune_util.Log.info [ Pp.textf "Removing %s \n" lib_name ];
