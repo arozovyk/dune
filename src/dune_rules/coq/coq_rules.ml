@@ -504,6 +504,7 @@ let setup_coqdoc_rules ~sctx ~dir ~theories_deps (s : Coq_stanza.Theory.t)
                Memo.parallel_map theories_deps ~f:(fun theory ->
                    let+ theory_dirs = directories_of_lib ~sctx theory in
                    Dep.Set.of_list_map theory_dirs ~f:(fun dir ->
+                       (* TODO *)
                        Glob.of_string_exn Loc.none "*.glob"
                        |> File_selector.of_glob ~dir:(Path.build dir)
                        |> Dep.file_selector))
