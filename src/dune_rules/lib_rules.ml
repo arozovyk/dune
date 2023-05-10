@@ -568,13 +568,27 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ?(lib_top_module_map = Resolve.Memo.return []) (lib : Library.t) ~sctx
     ~dir_contents ~dir ~expander ~scope =
   let buildable = lib.buildable in
+  let* source_modules =
+    Dir_contents.ocaml dir_contents
+    >>| Ml_sources.modules ~for_:(Library (Library.best_name lib))
+  in
+  let* vimpl = Virtual_rules.impl sctx ~lib ~scope in
+  let obj_dir = Library.obj_dir ~dir lib in
+  let ocamldep_modules_data : Ocamldep.Modules_data.t =
+    { dir
+    ; sandbox = Sandbox_config.no_special_requirements
+    ; obj_dir
+    ; sctx
+    ; vimpl
+    ; modules = source_modules
+    ; stdlib = lib.stdlib
+    }
+  in
+  let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in 
+
   let* local_lib, compile_info = compile_info lib scope in
   let local_lib = Lib.Local.of_lib_exn local_lib in
   let f () =
-    let* source_modules =
-      Dir_contents.ocaml dir_contents
-      >>| Ml_sources.modules ~for_:(Library (Library.best_name lib))
-    in
     let* cctx =
       cctx lib ~sctx ~source_modules ~dir ~scope ~expander ~compile_info
         ~lib_to_entry_modules_map ~lib_top_module_map

@@ -243,6 +243,22 @@ let compile_info ~scope (exes : Dune_file.Executables.t) =
 let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ?(lib_top_module_map = Resolve.Memo.return []) ~sctx ~dir ~dir_contents
     ~scope ~expander (exes : Dune_file.Executables.t) =
+  let* modules, obj_dir =
+    let first_exe = first_exe exes in
+    Dir_contents.ocaml dir_contents
+    >>| Ml_sources.modules_and_obj_dir ~for_:(Exe { first_exe })
+  in
+  let ocamldep_modules_data : Ocamldep.Modules_data.t =
+    { dir = Obj_dir.dir obj_dir
+    ; sandbox = Sandbox_config.no_special_requirements
+    ; obj_dir
+    ; sctx
+    ; vimpl = None
+    ; modules
+    ; stdlib = None
+    }
+  in
+  let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in
   let* compile_info = compile_info ~scope exes in
   let f () =
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
