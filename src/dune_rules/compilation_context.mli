@@ -42,7 +42,8 @@ val create :
   -> ?lib_top_module_map:
        (Module_name.t * Module.t list) list list Resolve.Memo.t
   -> ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
-  -> unit
+(*   -> ?dep_graphs:(Lib.t * Module.t list) list Resolve.Memo.t
+ *)  -> unit
   -> t Memo.t
 
 (** Return a compilation context suitable for compiling the alias module. *)

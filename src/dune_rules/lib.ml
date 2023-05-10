@@ -1909,9 +1909,35 @@ module DB = struct
                     (List.map res ~f:(fun l -> name l |> Lib_name.to_string)
                     |> String.concat ~sep:",")
                 ];
-              Resolve_names.linking_closure_with_overlap_checks
-                (Option.some_if (not allow_overlaps) t)
-                ~forbidden_libraries res)
+
+              let test =
+                List.map res ~f:(fun l ->
+                    let closedi =
+                      Resolve_names.linking_closure_with_overlap_checks
+                        (Option.some_if (not allow_overlaps) t)
+                        ~forbidden_libraries [ l ]
+                    in
+                    Resolve.Memo.map closedi ~f:(fun closed ->
+                        ( Printf.sprintf " --- %s has closure (%s)"
+                            (name l |> Lib_name.to_string)
+                            (List.map closed ~f:(fun l ->
+                                 name l |> Lib_name.to_string)
+                            |> String.concat ~sep:",")
+                        , closedi )))
+              in
+              let test = Resolve.Memo.all test in
+              let closedw =
+                Resolve_names.linking_closure_with_overlap_checks
+                  (Option.some_if (not allow_overlaps) t)
+                  ~forbidden_libraries res
+              in
+
+              Resolve.Memo.bind test ~f:(fun closed ->
+                  let d = List.split closed in
+                  Dune_util.Log.info
+                    [ Pp.textf "Closed list %s" (fst d |> String.concat ~sep:",")
+                    ];
+                  closedw))
             ~human_readable_description:(fun () ->
               match targets with
               | `Melange_emit name -> Pp.textf "melange target %s" name

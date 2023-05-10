@@ -324,6 +324,7 @@ let dep_graphs t = t.modules.dep_graphs
 let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
+    (* ~dep_graphs *)
     ?(lib_top_module_map = Resolve.Memo.return [])
     ?(lib_to_entry_modules_map = Resolve.Memo.return []) () =
   let open Memo.O in

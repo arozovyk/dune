@@ -92,7 +92,7 @@ let o_files sctx ~dir ~expander ~(exes : Executables.t) ~linkages ~dir_contents
     Mode.Map.Multi.add_all o_files All foreign_o_files
 
 let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
-    ~lib_to_entry_modules_map ~lib_top_module_map ~embed_in_plugin_libraries
+    ~lib_to_entry_modules_map ~lib_top_module_map ~embed_in_plugin_libraries (* ~dep_graphs *)
     (exes : Dune_file.Executables.t) =
   (* Use "eobjs" rather than "objs" to avoid a potential conflict with a library
      of the same name *)
@@ -133,7 +133,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
       ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
-      ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map
+      ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map (* ~dep_graphs *)
   in
   let stdlib_dir = ctx.lib_config.stdlib_dir in
   let* requires_compile = Compilation_context.requires_compile cctx in
@@ -258,7 +258,7 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     Dir_contents.ocaml dir_contents
     >>| Ml_sources.modules_and_obj_dir ~for_:(Exe { first_exe })
   in
-  let ocamldep_modules_data : Ocamldep.Modules_data.t =
+  let _ocamldep_modules_data : Ocamldep.Modules_data.t =
     { dir = Obj_dir.dir obj_dir
     ; sandbox = Sandbox_config.no_special_requirements
     ; obj_dir
@@ -268,12 +268,12 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ; stdlib = None
     }
   in
-  let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
-  let* compile_info = compile_info ~scope ~dep_graphs exes in
+(*   let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
+ *)  let* compile_info = compile_info ~scope(*  ~dep_graphs *) exes in
   let f () =
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
       ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
-      ~lib_to_entry_modules_map ~lib_top_module_map
+      ~lib_to_entry_modules_map ~lib_top_module_map (* ~dep_graphs *)
   in
   let* () = Buildable_rules.gen_select_rules sctx compile_info ~dir
   and* () =
