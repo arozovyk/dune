@@ -1680,6 +1680,8 @@ module Compile = struct
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
     ; requires_link : t list Resolve.t Memo.Lazy.t
+    ; direct_per_module : t list Module_name.Unique.Map.t Resolve.Memo.t
+    ; link_per_module : t list Module_name.Unique.Map.t Resolve.Memo.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
@@ -1709,6 +1711,8 @@ module Compile = struct
     let merlin_ident = Merlin_ident.for_lib t.name in
     { direct_requires = requires
     ; requires_link
+    ; direct_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
+    ; link_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
     ; resolved_selects = Memo.return t.resolved_selects
     ; pps = Memo.return t.pps
     ; sub_systems = t.sub_systems
@@ -1718,6 +1722,10 @@ module Compile = struct
   let direct_requires t = t.direct_requires
 
   let requires_link t = t.requires_link
+
+  let direct_per_module t = t.direct_per_module
+
+  let link_per_module t = t.link_per_module
 
   let resolved_selects t = t.resolved_selects
 
@@ -1867,6 +1875,79 @@ module DB = struct
         [ ("name", Lib_name.to_dyn name) ]
     | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
 
+  let resolve_user_written_deps_per_module t targets ~allow_overlaps
+      ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident =
+    let resolved =
+      Memo.lazy_ (fun () ->
+          Resolve_names.resolve_deps_and_add_runtime_deps t deps ~pps
+            ~private_deps:Allow_all ~dune_version:(Some dune_version))
+    in
+    let requires_link =
+      Memo.Lazy.create (fun () ->
+          let* forbidden_libraries =
+            let* l =
+              Resolve.Memo.List.map forbidden_libraries ~f:(fun (loc, name) ->
+                  let+ lib = resolve t (loc, name) in
+                  (lib, loc))
+            in
+            match Map.of_list l with
+            | Ok res -> Resolve.Memo.return res
+            | Error (lib, _, loc) ->
+              Error.make ~loc
+                [ Pp.textf "Library %S appears for the second time"
+                    (Lib_name.to_string lib.name)
+                ]
+          and+ res =
+            let open Memo.O in
+            let+ resolved = Memo.Lazy.force resolved in
+            resolved.requires
+          in
+          Resolve.Memo.push_stack_frame
+            (fun () ->
+              Dune_util.Log.info
+                [ Pp.textf "Init list %s"
+                    (List.map res ~f:(fun l -> name l |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                ];
+              Resolve_names.linking_closure_with_overlap_checks
+                (Option.some_if (not allow_overlaps) t)
+                ~forbidden_libraries res)
+            ~human_readable_description:(fun () ->
+              match targets with
+              | `Melange_emit name -> Pp.textf "melange target %s" name
+              | `Exe [ (loc, name) ] ->
+                Pp.textf "executable %s in %s" name (Loc.to_file_colon_line loc)
+              | `Exe names ->
+                let loc, _ = List.hd names in
+                Pp.textf "executables %s in %s"
+                  (String.enumerate_and (List.map ~f:snd names))
+                  (Loc.to_file_colon_line loc)))
+    in
+    let pps =
+      let open Memo.O in
+      let+ resolved = Memo.Lazy.force resolved in
+      resolved.pps
+    in
+    let direct_requires =
+      let open Memo.O in
+      let+ resolved = Memo.Lazy.force resolved in
+      resolved.requires
+    in
+    let resolved_selects =
+      let open Memo.O in
+      let+ resolved = Memo.Lazy.force resolved in
+      resolved.selects
+    in
+    { Compile.direct_requires
+    ; requires_link
+    ; direct_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
+    ; link_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
+    ; pps
+    ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
+    ; sub_systems = Sub_system_name.Map.empty
+    ; merlin_ident
+    }
+
   let resolve_user_written_deps t targets ~allow_overlaps ~forbidden_libraries
       deps ~pps ~dune_version ~merlin_ident =
     let resolved =
@@ -1927,6 +2008,8 @@ module DB = struct
     in
     { Compile.direct_requires
     ; requires_link
+    ; direct_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
+    ; link_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
     ; pps
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty

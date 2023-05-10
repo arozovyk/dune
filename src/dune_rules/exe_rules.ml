@@ -222,7 +222,17 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
       ~ident:(Lib.Compile.merlin_ident compile_info)
       ~modes:`Exe )
 
-let compile_info ~scope (exes : Dune_file.Executables.t) =
+let compile_info
+    ?(dep_graphs =
+      Ml_kind.Dict.make
+        ~impl:
+          (Dep_graph.make ~dir:(Path.Build.of_string "")
+             ~per_module:Module_name.Unique.Map.empty)
+        ~intf:
+          (Dep_graph.make ~dir:(Path.Build.of_string "")
+             ~per_module:Module_name.Unique.Map.empty)) ~scope
+    (exes : Dune_file.Executables.t) =
+  ignore dep_graphs;
   let dune_version = Scope.project scope |> Dune_project.dune_version in
   let+ pps =
     (* TODO resolution should be delayed *)
@@ -235,7 +245,7 @@ let compile_info ~scope (exes : Dune_file.Executables.t) =
   let merlin_ident =
     Merlin_ident.for_exes ~names:(List.map ~f:snd exes.names)
   in
-  Lib.DB.resolve_user_written_deps (Scope.libs scope) (`Exe exes.names)
+  Lib.DB.resolve_user_written_deps_per_module (Scope.libs scope) (`Exe exes.names)
     exes.buildable.libraries ~pps ~dune_version
     ~allow_overlaps:exes.buildable.allow_overlapping_dependencies
     ~forbidden_libraries:exes.forbidden_libraries ~merlin_ident
@@ -258,8 +268,8 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ; stdlib = None
     }
   in
-  let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in
-  let* compile_info = compile_info ~scope exes in
+  let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
+  let* compile_info = compile_info ~scope ~dep_graphs exes in
   let f () =
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
       ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries

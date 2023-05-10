@@ -71,6 +71,10 @@ module Compile : sig
   (** Dependencies listed by the user + runtime dependencies from ppx *)
   val direct_requires : t -> lib list Resolve.Memo.t
 
+  val direct_per_module : t -> lib list Module_name.Unique.Map.t Resolve.Memo.t
+
+  val link_per_module : t -> lib list Module_name.Unique.Map.t Resolve.Memo.t
+
   module Resolved_select : sig
     type t =
       { src_fn : Filename.t Resolve.t
@@ -155,6 +159,17 @@ module DB : sig
 
       This function is for executables or melange.emit stanzas. *)
   val resolve_user_written_deps :
+       t
+    -> [ `Exe of (Import.Loc.t * string) list | `Melange_emit of string ]
+    -> allow_overlaps:bool
+    -> forbidden_libraries:(Loc.t * Lib_name.t) list
+    -> Lib_dep.t list
+    -> pps:(Loc.t * Lib_name.t) list
+    -> dune_version:Dune_lang.Syntax.Version.t
+    -> merlin_ident:Merlin_ident.t
+    -> Compile.t
+
+  val resolve_user_written_deps_per_module :
        t
     -> [ `Exe of (Import.Loc.t * string) list | `Melange_emit of string ]
     -> allow_overlaps:bool

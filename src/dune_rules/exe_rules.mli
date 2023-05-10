@@ -1,7 +1,10 @@
 open Import
 
 val compile_info :
-  scope:Scope.t -> Dune_file.Executables.t -> Lib.Compile.t Memo.t
+     ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
+  -> scope:Scope.t
+  -> Dune_file.Executables.t
+  -> Lib.Compile.t Memo.t
 
 val rules :
      ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
