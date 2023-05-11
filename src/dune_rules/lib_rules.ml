@@ -574,7 +574,7 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
   in
   let* vimpl = Virtual_rules.impl sctx ~lib ~scope in
   let obj_dir = Library.obj_dir ~dir lib in
-  let ocamldep_modules_data : Ocamldep.Modules_data.t =
+  let _ocamldep_modules_data : Ocamldep.Modules_data.t =
     { dir
     ; sandbox = Sandbox_config.no_special_requirements
     ; obj_dir
@@ -584,8 +584,8 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ; stdlib = lib.stdlib
     }
   in
-  let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in 
-
+(*   let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in 
+ *)
   let* local_lib, compile_info = compile_info lib scope in
   let local_lib = Lib.Local.of_lib_exn local_lib in
   let f () =

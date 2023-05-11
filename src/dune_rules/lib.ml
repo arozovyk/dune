@@ -1918,7 +1918,7 @@ module DB = struct
                         ~forbidden_libraries [ l ]
                     in
                     Resolve.Memo.map closedi ~f:(fun closed ->
-                        ( Printf.sprintf " --- %s has closure (%s)"
+                        ( Printf.sprintf "\n%s has closure\n(%s)"
                             (name l |> Lib_name.to_string)
                             (List.map closed ~f:(fun l ->
                                  name l |> Lib_name.to_string)
