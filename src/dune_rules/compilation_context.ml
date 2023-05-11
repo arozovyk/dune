@@ -62,14 +62,10 @@ module Includes = struct
             let implements =
               Option.is_some (Lib_info.implements (Lib.info lib))
             in
-            let wrapped = Option.is_some (Lib_info.wrapped (Lib.info lib)) in
-            let def_impl =
-              Option.is_some (Lib_info.default_implementation (Lib.info lib))
-            in
+            let local = Lib.Local.of_lib lib |> Option.is_none in
             (* Not filtering vlib implementations, vlibs, and melange mode *)
             let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
-            if implements || virtual_ || wrapped || def_impl || melange_mode
-            then true
+            if implements || virtual_ || local || melange_mode then true
             else
               let entry_module_names =
                 (match Lib.Map.find lib_to_entry_modules_map lib with
@@ -90,7 +86,7 @@ module Includes = struct
                         (flag_open_present
                            (Module_name.to_string entry_module_name)
                            flags)
-                    then
+                    then (
                       let top_c_modules =
                         match
                           Module_name.Map.find lib_top_module_map
@@ -121,29 +117,29 @@ module Includes = struct
                                    Module_name.equal entry_module_name
                                      (Module.name top_c_mod)))
                       in
-                      (* if not keep then
-                         Dune_util.Log.info
-                           [ Pp.textf
-                               "Removing %s aka %s for module %s \n\n\
-                                ~Odep_list: %s\n\n\
-                                ~Top_c_modules: %s\n\
-                                ~Flags : %s\n\n\n\
-                               \                                                          \
-                                \n\n\
-                               \                              \\n\n\
-                               \                         \n\
-                               \                         •\n\
-                                ------------------"
-                               (Lib.name lib |> Lib_name.to_string)
-                               (Module_name.to_string entry_module_name)
-                               (Module.name md |> Module_name.to_string)
-                               (String.concat dep_names ~sep:" , ")
-                               (List.map top_c_modules ~f:(fun m ->
-                                    Module.name m |> Module_name.to_string)
-                               |> String.concat ~sep:", ")
-                               (String.concat flags ~sep:",")
-                           ]; *)
-                      keep
+                      if not keep then
+                        Dune_util.Log.info
+                          [ Pp.textf
+                              "Removing %s aka %s for module %s \n\n\
+                               ~Odep_list: %s\n\n\
+                               ~Top_c_modules: %s\n\
+                               ~Flags : %s\n\n\n\
+                              \                                                          \
+                               \n\n\
+                              \                              \\n\n\
+                              \                         \n\
+                              \                         •\n\
+                               ------------------"
+                              (Lib.name lib |> Lib_name.to_string)
+                              (Module_name.to_string entry_module_name)
+                              (Module.name md |> Module_name.to_string)
+                              (String.concat dep_names ~sep:" , ")
+                              (List.map top_c_modules ~f:(fun m ->
+                                   Module.name m |> Module_name.to_string)
+                              |> String.concat ~sep:", ")
+                              (String.concat flags ~sep:",")
+                          ];
+                      keep)
                     else true)
               else true)
 
