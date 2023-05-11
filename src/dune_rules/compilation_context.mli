@@ -42,8 +42,9 @@ val create :
   -> ?lib_top_module_map:
        (Module_name.t * Module.t list) list list Resolve.Memo.t
   -> ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
-(*   -> ?dep_graphs:(Lib.t * Module.t list) list Resolve.Memo.t
- *)  -> unit
+       (*   -> ?dep_graphs:(Lib.t * Module.t list) list Resolve.Memo.t
+ *)
+  -> unit
   -> t Memo.t
 
 (** Return a compilation context suitable for compiling the alias module. *)
@@ -111,6 +112,9 @@ val bin_annot : t -> bool
 val without_bin_annot : t -> t
 
 val root_module_entries : t -> Module_name.t list Action_builder.t
+
+val entry_module_names :
+  Super_context.t -> Lib.t -> Module_name.t list Resolve.Memo.t
 
 (** The dependency graph for the modules of the library. *)
 val dep_graphs : t -> Dep_graph.t Ml_kind.Dict.t

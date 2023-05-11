@@ -4,6 +4,7 @@ val compile_info :
      ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
   -> scope:Scope.t
   -> Dune_file.Executables.t
+  -> Super_context.t
   -> Lib.Compile.t Memo.t
 
 val rules :

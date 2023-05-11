@@ -178,6 +178,7 @@ module DB : sig
     -> pps:(Loc.t * Lib_name.t) list
     -> dune_version:Dune_lang.Syntax.Version.t
     -> merlin_ident:Merlin_ident.t
+    -> entries_f:( lib -> Module_name.t list Resolve.Memo.t)
     -> Compile.t
 
   val resolve_pps : t -> (Loc.t * Lib_name.t) list -> lib list Resolve.Memo.t

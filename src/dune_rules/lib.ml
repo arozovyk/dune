@@ -1876,7 +1876,9 @@ module DB = struct
     | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
 
   let resolve_user_written_deps_per_module t targets ~allow_overlaps
-      ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident =
+      ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident
+      ~(entries_f : lib -> Module_name.t list Resolve.Memo.t) =
+    ignore entries_f;
     let resolved =
       Memo.lazy_ (fun () ->
           Resolve_names.resolve_deps_and_add_runtime_deps t deps ~pps
@@ -1917,13 +1919,31 @@ module DB = struct
                         (Option.some_if (not allow_overlaps) t)
                         ~forbidden_libraries [ l ]
                     in
-                    Resolve.Memo.map closedi ~f:(fun closed ->
-                        ( Printf.sprintf "\n%s has closure\n(%s)"
-                            (name l |> Lib_name.to_string)
-                            (List.map closed ~f:(fun l ->
-                                 name l |> Lib_name.to_string)
-                            |> String.concat ~sep:",")
-                        , closedi )))
+                    let e_names = entries_f l in
+                    let open Resolve.Memo.O in
+                    let* e_names_lib = e_names in
+                    let* closedi = closedi in
+                    let* lmci =
+                      List.map closedi ~f:(fun lc ->
+                          let+ e_lc = entries_f lc in
+                          Printf.sprintf "\nEtnries of {%s} are [%s]"
+                            (name lc |> Lib_name.to_string)
+                            (List.map e_lc ~f:(fun en ->
+                                 Module_name.to_string en)
+                            |> String.concat ~sep:","))
+                      |> Resolve.Memo.all
+                    in
+
+                    let str =
+                      Printf.sprintf
+                        "\nlibrary:%s with entry_names '%s' has closure\n(%s)"
+                        (name l |> Lib_name.to_string)
+                        (List.map e_names_lib ~f:(fun en ->
+                             Module_name.to_string en)
+                        |> String.concat ~sep:",")
+                        (String.concat lmci ~sep:",")
+                    in
+                    Resolve.Memo.return str)
               in
               let test = Resolve.Memo.all test in
               let closedw =
@@ -1933,10 +1953,9 @@ module DB = struct
               in
 
               Resolve.Memo.bind test ~f:(fun closed ->
-                  let d = List.split closed in
+                  let d = closed in
                   Dune_util.Log.info
-                    [ Pp.textf "Closed list %s" (fst d |> String.concat ~sep:",")
-                    ];
+                    [ Pp.textf "Closed list %s" (d |> String.concat ~sep:",") ];
                   closedw))
             ~human_readable_description:(fun () ->
               match targets with

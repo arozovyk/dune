@@ -92,7 +92,8 @@ let o_files sctx ~dir ~expander ~(exes : Executables.t) ~linkages ~dir_contents
     Mode.Map.Multi.add_all o_files All foreign_o_files
 
 let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
-    ~lib_to_entry_modules_map ~lib_top_module_map ~embed_in_plugin_libraries (* ~dep_graphs *)
+    ~lib_to_entry_modules_map ~lib_top_module_map
+    ~embed_in_plugin_libraries (* ~dep_graphs *)
     (exes : Dune_file.Executables.t) =
   (* Use "eobjs" rather than "objs" to avoid a potential conflict with a library
      of the same name *)
@@ -133,7 +134,8 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
       ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
-      ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map (* ~dep_graphs *)
+      ~package:exes.package ~lib_top_module_map
+      ~lib_to_entry_modules_map (* ~dep_graphs *)
   in
   let stdlib_dir = ctx.lib_config.stdlib_dir in
   let* requires_compile = Compilation_context.requires_compile cctx in
@@ -231,7 +233,7 @@ let compile_info
         ~intf:
           (Dep_graph.make ~dir:(Path.Build.of_string "")
              ~per_module:Module_name.Unique.Map.empty)) ~scope
-    (exes : Dune_file.Executables.t) =
+    (exes : Dune_file.Executables.t) sctx =
   ignore dep_graphs;
   let dune_version = Scope.project scope |> Dune_project.dune_version in
   let+ pps =
@@ -245,10 +247,11 @@ let compile_info
   let merlin_ident =
     Merlin_ident.for_exes ~names:(List.map ~f:snd exes.names)
   in
-  Lib.DB.resolve_user_written_deps_per_module (Scope.libs scope) (`Exe exes.names)
-    exes.buildable.libraries ~pps ~dune_version
+  let entries_f = Compilation_context.entry_module_names sctx in
+  Lib.DB.resolve_user_written_deps_per_module (Scope.libs scope)
+    (`Exe exes.names) exes.buildable.libraries ~pps ~dune_version
     ~allow_overlaps:exes.buildable.allow_overlapping_dependencies
-    ~forbidden_libraries:exes.forbidden_libraries ~merlin_ident
+    ~forbidden_libraries:exes.forbidden_libraries ~merlin_ident ~entries_f
 
 let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ?(lib_top_module_map = Resolve.Memo.return []) ~sctx ~dir ~dir_contents
@@ -268,8 +271,9 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ; stdlib = None
     }
   in
-(*   let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
- *)  let* compile_info = compile_info ~scope(*  ~dep_graphs *) exes in
+  (*   let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
+ *)
+  let* compile_info = compile_info ~scope (*  ~dep_graphs *) exes sctx in
   let f () =
     executables_rules exes ~sctx ~dir ~dir_contents ~scope ~expander
       ~compile_info ~embed_in_plugin_libraries:exes.embed_in_plugin_libraries
