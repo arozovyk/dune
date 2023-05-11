@@ -1686,6 +1686,10 @@ module Compile = struct
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
     ; merlin_ident : Merlin_ident.t
+    ; test :
+        string list Resolve.Memo.t
+        * lib list Resolve.t Memo.t
+        * lib list Resolve.t Memo.Lazy.t
     }
 
   let for_lib ~allow_overlaps db (t : lib) =
@@ -1717,6 +1721,10 @@ module Compile = struct
     ; pps = Memo.return t.pps
     ; sub_systems = t.sub_systems
     ; merlin_ident
+    ; test =
+        ( Resolve.Memo.return []
+        , Resolve.Memo.return []
+        , Memo.Lazy.of_val (Resolve.return []) )
     }
 
   let direct_requires t = t.direct_requires
@@ -1732,6 +1740,8 @@ module Compile = struct
   let pps t = t.pps
 
   let merlin_ident t = t.merlin_ident
+
+  let test t = t.test
 
   let sub_systems t =
     Sub_system_name.Map.values t.sub_systems
@@ -1881,55 +1891,7 @@ module DB = struct
     ignore entries_f;
     ignore modules;
     ignore dep_graphs;
-    let test2 =
-      match modules with
-      | Some mods ->
-        let r =
-          Modules.fold_no_vlib mods ~init:[] ~f:(fun m acc ->
-              let deps =
-                match dep_graphs with
-                | Some dep_graphs ->
-                  let dep_graph_impl =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Impl
-                  in
-                  let dep_graph_intf =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Intf
-                  in
-                  let module_deps_impl = Dep_graph.deps_of dep_graph_impl m in
-                  let module_deps_intf = Dep_graph.deps_of dep_graph_intf m in
-                  let cmb_itf_impl =
-                    Action_builder.map2 module_deps_impl module_deps_intf
-                      ~f:(fun inft impl -> List.append inft impl)
-                  in
-                  let d =
-                    Action_builder.run cmb_itf_impl Action_builder.Eager
-                    |> Resolve.Memo.lift_memo
-                  in
-                  d
-                | None ->
-                  Resolve.Memo.return
-                    ( [ Module_dep.External
-                          (Module_dep.External_name.of_string "dog")
-                      ]
-                    , Dep.Map.empty )
-              in
 
-              Resolve.Memo.map deps ~f:(fun (odeps, _) ->
-                  Printf.sprintf "Module : %s\nHas deps : [%s]"
-                    (Module.name m |> Module_name.to_string)
-                    (List.map odeps ~f:(fun md ->
-                         match md with
-                         | Module_dep.Local m ->
-                           Module.name m |> Module_name.to_string
-                         | Module_dep.External en ->
-                           Module_dep.External_name.to_string en)
-                    |> String.concat ~sep:","))
-              :: acc)
-          |> Resolve.Memo.all
-        in
-        r
-      | None -> Resolve.Memo.return []
-    in
     let resolved =
       Memo.lazy_ (fun () ->
           Resolve_names.resolve_deps_and_add_runtime_deps t deps ~pps
@@ -1972,18 +1934,14 @@ module DB = struct
                     in
                     let e_names = entries_f l in
                     let open Resolve.Memo.O in
-                    let* mods = test2 in
+                    (*   let* mods = test2 in *)
                     let* e_names_lib = e_names in
                     let* closedi = closedi in
                     let* lmci =
                       List.map closedi ~f:(fun lc ->
                           let+ e_lc = entries_f lc in
                           Printf.sprintf
-                            "\n\
-                             Modules compiled: %s\n\
-                            \ \n\
-                             Etnries of {%s} are [%s]"
-                            (mods |> String.concat ~sep:",")
+                            "\nModules compiled:  \n \nEtnries of {%s} are [%s]"
                             (name lc |> Lib_name.to_string)
                             (List.map e_lc ~f:(fun en ->
                                  Module_name.to_string en)
@@ -2035,6 +1993,50 @@ module DB = struct
       let+ resolved = Memo.Lazy.force resolved in
       resolved.requires
     in
+    let _test2 =
+      match modules with
+      | Some mods ->
+        let r =
+          Modules.fold_no_vlib mods ~init:[] ~f:(fun m acc ->
+              let deps =
+                match dep_graphs with
+                | Some dep_graphs ->
+                  let dep_graph_impl =
+                    Ml_kind.Dict.get dep_graphs Ml_kind.Impl
+                  in
+                  let dep_graph_intf =
+                    Ml_kind.Dict.get dep_graphs Ml_kind.Intf
+                  in
+                  let module_deps_impl = Dep_graph.deps_of dep_graph_impl m in
+                  let module_deps_intf = Dep_graph.deps_of dep_graph_intf m in
+                  let cmb_itf_impl =
+                    Action_builder.map2 module_deps_impl module_deps_intf
+                      ~f:(fun inft impl -> List.append inft impl)
+                  in
+                  let d =
+                    Action_builder.run cmb_itf_impl Action_builder.Eager
+                    |> Resolve.Memo.lift_memo
+                  in
+                  d
+                | None -> Resolve.Memo.return ([], Dep.Map.empty)
+              in
+
+              Resolve.Memo.map deps ~f:(fun (odeps, _) ->
+                  Printf.sprintf "Module : %s\nHas deps : [%s]"
+                    (Module.name m |> Module_name.to_string)
+                    (List.map odeps ~f:(fun md ->
+                         match md with
+                         | Module_dep.Local m ->
+                           Module.name m |> Module_name.to_string
+                         | Module_dep.External en ->
+                           Module_dep.External_name.to_string en)
+                    |> String.concat ~sep:","))
+              :: acc)
+          |> Resolve.Memo.all
+        in
+        (r, direct_requires, requires_link)
+      | None -> (Resolve.Memo.return [], direct_requires, requires_link)
+    in
     let resolved_selects =
       let open Memo.O in
       let+ resolved = Memo.Lazy.force resolved in
@@ -2048,6 +2050,7 @@ module DB = struct
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
+    ; test = _test2
     }
 
   let resolve_user_written_deps t targets ~allow_overlaps ~forbidden_libraries
@@ -2116,6 +2119,10 @@ module DB = struct
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
+    ; test =
+        ( Resolve.Memo.return []
+        , Resolve.Memo.return []
+        , Memo.Lazy.of_val (Resolve.return []) )
     }
 
   (* Here we omit the [only_ppx_deps_allowed] check because by the time we reach

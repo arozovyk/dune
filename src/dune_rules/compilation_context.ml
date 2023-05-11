@@ -3,8 +3,8 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let filter_with_odeps libs deps md lib_top_module_map lib_to_entry_modules_map
-      =
+  let _filter_with_odeps libs deps md lib_top_module_map
+      lib_to_entry_modules_map =
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = deps in
     let* lib_to_entry_modules_map = lib_to_entry_modules_map in
@@ -149,44 +149,63 @@ module Includes = struct
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
-      ~requires ~md ~dep_graphs ~flags =
-    let flags =
-      Action_builder.map2
-        (Action_builder.map2
-           (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
-           (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
-           ~f:List.append)
-        (Ocaml_flags.get flags Lib_mode.Melange)
-        ~f:List.append
-    in
-
+      ~requires ~md
+      ~(test :
+         string list Resolve.Memo.t
+         * Lib.t list Resolve.t Memo.t
+         * Lib.t list Resolve.t Memo.Lazy.t) ~dep_graphs ~flags =
+    (* let flags =
+         Action_builder.map2
+           (Action_builder.map2
+              (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
+              (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
+              ~f:List.append)
+           (Ocaml_flags.get flags Lib_mode.Melange)
+           ~f:List.append
+       in *)
+    ignore md;
+    ignore test;
+    ignore flags;
+    ignore dep_graphs;
+    ignore lib_to_entry_modules_map;
+    ignore lib_top_module_map;
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
-    let deps =
-      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
-      let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
-      let cmb_itf_impl =
-        Action_builder.map2 module_deps_impl module_deps_intf
-          ~f:(fun inft impl -> List.append inft impl)
-      in
+    let a, b, c = test in
 
-      let cmb_flags =
-        Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
-      in
-      Action_builder.run cmb_flags Action_builder.Eager
-      |> Resolve.Memo.lift_memo
-    in
+    let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
+    (* let deps =
+         let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+         let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+         let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+         let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
+         let cmb_itf_impl =
+           Action_builder.map2 module_deps_impl module_deps_intf
+             ~f:(fun inft impl -> List.append inft impl)
+         in
+
+         let cmb_flags =
+           Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
+         in
+         Action_builder.run cmb_flags Action_builder.Eager
+         |> Resolve.Memo.lift_memo
+       in *)
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            let* _fst = a in
+            let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in
+            Dune_util.Log.info
+              [ Pp.textf "Includes1 for module %s\nAll modules (%s)"
+                  (Module.name md |> Module_name.to_string)
+                  (String.concat _fst ~sep:",")
+              ];
+            (* let+ libs =
+                 filter_with_odeps libs deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -197,10 +216,18 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            let* _fst = a in
+            let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in
+            Dune_util.Log.info
+              [ Pp.textf "Includes2 for module %s\nAll modules (%s)"
+                  (Module.name md |> Module_name.to_string)
+                  (String.concat _fst ~sep:",")
+              ];
+            (* let+ libs =
+                 filter_with_odeps libs deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -325,9 +352,14 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
+    ?(test =
+      ( Resolve.Memo.return []
+      , Resolve.Memo.return []
+      , Memo.Lazy.of_val (Resolve.return []) ))
     ?(lib_to_entry_modules_map = Resolve.Memo.return []) ?dep_graphs () =
   let open Memo.O in
   let project = Scope.project scope in
+  ignore test;
   let requires_compile =
     if Dune_project.implicit_transitive_deps project then
       Memo.Lazy.force requires_link
@@ -371,7 +403,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
   let includes =
-    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
+    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs ~test
       ~lib_top_module_map ~lib_to_entry_modules_map ~flags ()
   in
   { super_context
@@ -474,6 +506,10 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
+      ~test:
+        ( Resolve.Memo.return []
+        , Resolve.Memo.return []
+        , Memo.Lazy.of_val (Resolve.return []) )
       ~requires ~flags ()
   in
   { cctx with

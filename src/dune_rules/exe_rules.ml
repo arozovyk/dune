@@ -116,6 +116,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
   let* cctx =
     let requires_compile = Lib.Compile.direct_requires compile_info in
     let requires_link = Lib.Compile.requires_link compile_info in
+    let test = Lib.Compile.test compile_info in
     let js_of_ocaml =
       let js_of_ocaml =
         Js_of_ocaml.In_context.make ~dir exes.buildable.js_of_ocaml
@@ -130,7 +131,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         Memo.Lazy.force requires_link
       else requires_compile
     in
-    Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
+    Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx ~test
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
       ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
       ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map

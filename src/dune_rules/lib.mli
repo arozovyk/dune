@@ -75,6 +75,12 @@ module Compile : sig
 
   val link_per_module : t -> lib list Module_name.Unique.Map.t Resolve.Memo.t
 
+  val test :
+       t
+    -> string list Resolve.Memo.t
+       * lib list Resolve.t Memo.t
+       * lib list Resolve.t Memo.Lazy.t
+
   module Resolved_select : sig
     type t =
       { src_fn : Filename.t Resolve.t

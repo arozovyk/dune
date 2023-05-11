@@ -41,6 +41,10 @@ val create :
   -> ?loc:Loc.t
   -> ?lib_top_module_map:
        (Module_name.t * Module.t list) list list Resolve.Memo.t
+  -> ?test:
+       string list Resolve.Memo.t
+       * Lib.t list Resolve.t Memo.t
+       * Lib.t list Resolve.t Memo.Lazy.t
   -> ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
   -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
   -> unit

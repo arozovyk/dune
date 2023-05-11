@@ -28,7 +28,7 @@ let top_closed t modules =
   | Ok modules -> modules
   | Error cycle ->
     User_error.raise
-      [ Pp.textf "dependency cycle between modules in %s:"
+      [ Pp.textf "top_closed:dependency cycle between modules in %s:"
           (Path.Build.to_string t.dir)
       ; Pp.chain cycle ~f:(fun m ->
             Pp.verbatim (Module_name.to_string (Module.name m)))
