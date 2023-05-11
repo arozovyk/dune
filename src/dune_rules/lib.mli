@@ -171,6 +171,8 @@ module DB : sig
 
   val resolve_user_written_deps_per_module :
        t
+    -> ?modules:Modules.t
+    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
     -> [ `Exe of (Import.Loc.t * string) list | `Melange_emit of string ]
     -> allow_overlaps:bool
     -> forbidden_libraries:(Loc.t * Lib_name.t) list
@@ -178,7 +180,7 @@ module DB : sig
     -> pps:(Loc.t * Lib_name.t) list
     -> dune_version:Dune_lang.Syntax.Version.t
     -> merlin_ident:Merlin_ident.t
-    -> entries_f:( lib -> Module_name.t list Resolve.Memo.t)
+    -> entries_f:(lib -> Module_name.t list Resolve.Memo.t)
     -> Compile.t
 
   val resolve_pps : t -> (Loc.t * Lib_name.t) list -> lib list Resolve.Memo.t

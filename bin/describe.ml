@@ -299,7 +299,7 @@ module Crawl = struct
     in
     let* modules_ = modules ~obj_dir ~deps_of modules_ in
     let+ requires =
-      let* compile_info = Exe_rules.compile_info ~scope exes sctx in
+      let* compile_info = Exe_rules.compile_info ~scope ~sctx exes in
       let open Resolve.Memo.O in
       let* requires = Lib.Compile.direct_requires compile_info in
       if options.with_pps then

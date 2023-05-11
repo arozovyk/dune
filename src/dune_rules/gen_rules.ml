@@ -205,7 +205,8 @@ end = struct
       | true ->
         let* () = Memo.Option.iter exes.install_conf ~f:files_to_install in
         let project = Scope.project scope in
-        let* compile_info = Exe_rules.compile_info ~scope exes sctx in
+        
+        let* compile_info = Exe_rules.compile_info ~scope ~sctx   exes  in
         let requires = make_requires project compile_info in
         let lib_to_entry_modules_map = make_lib_entry_map sctx requires in
         let lib_top_module_map =
