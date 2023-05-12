@@ -42,7 +42,8 @@ val create :
   -> ?lib_top_module_map:
        (Module_name.t * Module.t list) list list Resolve.Memo.t
   -> ?test:
-       (   Dep_graph.t Ml_kind.Dict.t option
+       (   (   Module.t
+            -> (Module_dep.t list * Dep.Fact.t Dep.Map.t) Resolve.Memo.t)
         -> string list Resolve.Memo.t
            * Lib.t list Resolve.t Memo.t
            * Lib.t list Resolve.t Memo.Lazy.t)

@@ -1687,7 +1687,8 @@ module Compile = struct
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
     ; merlin_ident : Merlin_ident.t
     ; test :
-           Dep_graph.t Ml_kind.Dict.t option
+           (   Module.t
+            -> (Module_dep.t list * Dep.Fact.t Dep.Map.t) Resolve.Memo.t)
         -> string list Resolve.Memo.t
            * lib list Resolve.t Memo.t
            * lib list Resolve.t Memo.Lazy.t
@@ -1714,34 +1715,12 @@ module Compile = struct
                 ~forbidden_libraries:Map.empty)
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
-    let _test2 dep_graphs =
+    let _test2 get_deps =
       match modules with
       | Some mods ->
         let r =
           Modules.fold_user_available mods ~init:[] ~f:(fun m acc ->
-              let deps =
-                match dep_graphs with
-                | Some dep_graphs ->
-                  let dep_graph_impl =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Impl
-                  in
-                  let dep_graph_intf =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Intf
-                  in
-                  let module_deps_impl = Dep_graph.deps_of dep_graph_impl m in
-                  let module_deps_intf = Dep_graph.deps_of dep_graph_intf m in
-                  let cmb_itf_impl =
-                    Action_builder.map2 module_deps_impl module_deps_intf
-                      ~f:(fun inft impl -> List.append inft impl)
-                  in
-                  let d =
-                    Action_builder.run cmb_itf_impl Action_builder.Eager
-                    |> Resolve.Memo.lift_memo
-                  in
-                  d
-                | None -> Resolve.Memo.return ([], Dep.Map.empty)
-              in
-
+              let deps = get_deps m in
               Resolve.Memo.map deps ~f:(fun (odeps, _) ->
                   Printf.sprintf "Module : %s\nHas deps : [%s]"
                     (Module.name m |> Module_name.to_string)
@@ -2040,34 +2019,12 @@ module DB = struct
       let+ resolved = Memo.Lazy.force resolved in
       resolved.requires
     in
-    let _test2 dep_graphs=
+    let _test2 get_deps =
       match modules with
       | Some mods ->
         let r =
           Modules.fold_user_written mods ~init:[] ~f:(fun m acc ->
-              let deps =
-                match dep_graphs with
-                | Some dep_graphs ->
-                  let dep_graph_impl =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Impl
-                  in
-                  let dep_graph_intf =
-                    Ml_kind.Dict.get dep_graphs Ml_kind.Intf
-                  in
-                  let module_deps_impl = Dep_graph.deps_of dep_graph_impl m in
-                  let module_deps_intf = Dep_graph.deps_of dep_graph_intf m in
-                  let cmb_itf_impl =
-                    Action_builder.map2 module_deps_impl module_deps_intf
-                      ~f:(fun inft impl -> List.append inft impl)
-                  in
-                  let d =
-                    Action_builder.run cmb_itf_impl Action_builder.Eager
-                    |> Resolve.Memo.lift_memo
-                  in
-                  d
-                | None -> Resolve.Memo.return ([], Dep.Map.empty)
-              in
-
+              let deps = get_deps m in
               Resolve.Memo.map deps ~f:(fun (odeps, _) ->
                   Printf.sprintf "Module : %s\nHas deps : [%s]"
                     (Module.name m |> Module_name.to_string)
@@ -2166,10 +2123,11 @@ module DB = struct
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
-    ; test = fun _ -> 
-        ( Resolve.Memo.return []
-        , Resolve.Memo.return []
-        , Memo.Lazy.of_val (Resolve.return []) )
+    ; test =
+        (fun _ ->
+          ( Resolve.Memo.return []
+          , Resolve.Memo.return []
+          , Memo.Lazy.of_val (Resolve.return []) ))
     }
 
   (* Here we omit the [only_ppx_deps_allowed] check because by the time we reach

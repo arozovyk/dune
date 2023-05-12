@@ -77,7 +77,7 @@ module Compile : sig
 
   val test :
        t
-    -> Dep_graph.t Ml_kind.Dict.t option
+    -> (Module.t -> (Module_dep.t list * Dep.Fact.t Dep.Map.t) Resolve.Memo.t)
     -> string list Resolve.Memo.t
        * lib list Resolve.t Memo.t
        * lib list Resolve.t Memo.Lazy.t

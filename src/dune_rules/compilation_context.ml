@@ -151,7 +151,8 @@ module Includes = struct
       ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
       ~requires ~md
       ~(test :
-            Dep_graph.t Ml_kind.Dict.t option
+            (   Module.t
+             -> (Module_dep.t list * Dep.Fact.t Dep.Map.t) Resolve.Memo.t)
          -> string list Resolve.Memo.t
             * Lib.t list Resolve.t Memo.t
             * Lib.t list Resolve.t Memo.Lazy.t) ~dep_graphs ~flags =
@@ -176,34 +177,36 @@ module Includes = struct
         ];
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let a, _, _ =
-      test
-        (if List.exists path ~f:(fun s -> String.equal "menhir" s) then None
-        else Some dep_graphs)
-    in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
-    (* let deps =
-         let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-         let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
-         let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-         let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
-         let cmb_itf_impl =
-           Action_builder.map2 module_deps_impl module_deps_intf
-             ~f:(fun inft impl -> List.append inft impl)
-         in
-         let cmb_flags =
+    let deps module_ =
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      let module_deps_impl = Dep_graph.deps_of dep_graph_impl module_ in
+      let module_deps_intf = Dep_graph.deps_of dep_graph_intf module_ in
+      let cmb_itf_impl =
+        Action_builder.map2 module_deps_impl module_deps_intf
+          ~f:(fun inft impl -> List.append inft impl)
+      in
+
+      (* let cmb_flags =
            Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
-         in
-         Action_builder.run cmb_flags Action_builder.Eager
-         |> Resolve.Memo.lift_memo
-       in *)
+         in *)
+      Action_builder.run cmb_itf_impl Action_builder.Eager
+      |> Resolve.Memo.lift_memo
+    in
+    let a, b, c =
+      test
+        (* (if List.exists path ~f:(fun s -> String.equal "menhir" s) then None
+           else Some dep_graphs) *)
+        deps
+    in
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ _fst = a in
-          (*   let* _snd = b in
-            let+ _trd = Memo.Lazy.force c in *)
+            let* _fst = a in
+            let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in
             Dune_util.Log.info
               [ Pp.textf "Includes1 for module %s\nAll modules (%s)"
                   (Module.name md |> Module_name.to_string)
@@ -223,9 +226,9 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ _fst = a in
-          (*   let* _snd = b in
-            let+ _trd = Memo.Lazy.force c in *)
+            let* _fst = a in
+            let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in
             Dune_util.Log.info
               [ Pp.textf "Includes2 for module %s\nAll modules (%s)"
                   (Module.name md |> Module_name.to_string)
