@@ -3,8 +3,8 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let filter_with_odeps libs deps md lib_top_module_map lib_to_entry_modules_map
-      =
+  let _filter_with_odeps libs deps md lib_top_module_map
+      lib_to_entry_modules_map =
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = deps in
     let* lib_to_entry_modules_map = lib_to_entry_modules_map in
@@ -86,7 +86,7 @@ module Includes = struct
                         (flag_open_present
                            (Module_name.to_string entry_module_name)
                            flags)
-                    then (
+                    then
                       let top_c_modules =
                         match
                           Module_name.Map.find lib_top_module_map
@@ -117,35 +117,65 @@ module Includes = struct
                                    Module_name.equal entry_module_name
                                      (Module.name top_c_mod)))
                       in
-                      if not keep then
-                        Dune_util.Log.info
-                          [ Pp.textf
-                              "Removing %s aka %s for module %s \n\n\
-                               ~Odep_list: %s\n\n\
-                               ~Top_c_modules: %s\n\
-                               ~Flags : %s\n\n\n\
-                              \                                                          \
-                               \n\n\
-                              \                              \\n\n\
-                              \                         \n\
-                              \                         •\n\
-                               ------------------"
-                              (Lib.name lib |> Lib_name.to_string)
-                              (Module_name.to_string entry_module_name)
-                              (Module.name md |> Module_name.to_string)
-                              (String.concat dep_names ~sep:" , ")
-                              (List.map top_c_modules ~f:(fun m ->
-                                   Module.name m |> Module_name.to_string)
-                              |> String.concat ~sep:", ")
-                              (String.concat flags ~sep:",")
-                          ];
-                      keep)
+                      (* if not keep then
+                         Dune_util.Log.info
+                           [ Pp.textf
+                               "Removing %s aka %s for module %s \n\n\
+                                ~Odep_list: %s\n\n\
+                                ~Top_c_modules: %s\n\
+                                ~Flags : %s\n\n\n\
+                               \                                                          \
+                                \n\n\
+                               \                              \\n\n\
+                               \                         \n\
+                               \                         •\n\
+                                ------------------"
+                               (Lib.name lib |> Lib_name.to_string)
+                               (Module_name.to_string entry_module_name)
+                               (Module.name md |> Module_name.to_string)
+                               (String.concat dep_names ~sep:" , ")
+                               (List.map top_c_modules ~f:(fun m ->
+                                    Module.name m |> Module_name.to_string)
+                               |> String.concat ~sep:", ")
+                               (String.concat flags ~sep:",")
+                           ]; *)
+                      keep
                     else true)
               else true)
 
+  let resolve_module_odeps dep_graphs modules =
+    let open Resolve.Memo.O in
+    let deps md =
+      Dune_util.Log.info
+        [ Pp.textf "gona get deps of %s"
+            (Module.name md |> Module_name.to_string)
+        ];
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
+      let cmb_itf_impl =
+        Action_builder.map2 module_deps_impl module_deps_intf
+          ~f:(fun inft impl -> List.append inft impl)
+      in
+      Action_builder.run
+        (Action_builder.memoize "resolve_module_odeps" cmb_itf_impl)
+        Action_builder.Eager
+      |> Resolve.Memo.lift_memo
+    in
+    let mp =
+      Modules.fold_user_available modules ~init:[] ~f:(fun m acc -> m :: acc)
+    in
+    let+ mdp =
+      List.map mp ~f:(fun m ->
+          Resolve.Memo.map (deps m) ~f:(fun (deps, _) -> (Module.name m, deps)))
+      |> Resolve.Memo.all
+    in
+    Module_name.Map.of_list_exn mdp
+
   let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
-      ~requires ~md ~dep_graphs ~flags =
+      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~modules ~project
+      ~opaque ~requires ~md ~dep_graphs ~flags =
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -155,11 +185,13 @@ module Includes = struct
         (Ocaml_flags.get flags Lib_mode.Melange)
         ~f:List.append
     in
-
+    ignore modules;
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
-    let deps =
+    ignore lib_to_entry_modules_map;
+    ignore lib_top_module_map;
+    let _deps =
       let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
       let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
       let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
@@ -179,10 +211,11 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            let+ _ = resolve_module_odeps dep_graphs modules in
+            (* let+ libs =
+                 filter_with_odeps libs deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -193,10 +226,8 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            let+ _ = resolve_module_odeps dep_graphs modules in
+
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -365,7 +396,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   in
   let includes =
     Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
-      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ()
+      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ~modules ()
   in
   { super_context
   ; scope
@@ -466,8 +497,8 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   in
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
-    Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~requires ~flags ()
+    Includes.make ~dep_graphs ~project:(Scope.project cctx.scope)
+      ~modules:cctx.modules.modules ~opaque ~requires ~flags ()
   in
   { cctx with
     opaque

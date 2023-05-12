@@ -30,7 +30,7 @@ let code_error ~loc ~dyn_without_loc =
   ; needs_stack_trace = false
   }
 
-let get_error_from_exn = function
+let get_error_from_exn ?(from = "unk") = function
   | Memo.Cycle_error.E raw_cycle -> (
     let cycle =
       Memo.Cycle_error.get raw_cycle
