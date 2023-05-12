@@ -176,7 +176,7 @@ module Includes = struct
         ];
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let a, b, c =
+    let a, _, _ =
       test
         (if List.exists path ~f:(fun s -> String.equal "menhir" s) then None
         else Some dep_graphs)
@@ -201,9 +201,9 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let* _fst = a in
-            let* _snd = b in
-            let+ _trd = Memo.Lazy.force c in
+            let+ _fst = a in
+          (*   let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in *)
             Dune_util.Log.info
               [ Pp.textf "Includes1 for module %s\nAll modules (%s)"
                   (Module.name md |> Module_name.to_string)
@@ -223,9 +223,9 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let* _fst = a in
-            let* _snd = b in
-            let+ _trd = Memo.Lazy.force c in
+            let+ _fst = a in
+          (*   let* _snd = b in
+            let+ _trd = Memo.Lazy.force c in *)
             Dune_util.Log.info
               [ Pp.textf "Includes2 for module %s\nAll modules (%s)"
                   (Module.name md |> Module_name.to_string)
