@@ -63,13 +63,7 @@ module Compile : sig
 
   type t
 
-  val for_lib :
-       ?modules:Modules.t
-    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
-    -> allow_overlaps:bool
-    -> db
-    -> lib
-    -> t
+  val for_lib : ?modules:Modules.t -> allow_overlaps:bool -> db -> lib -> t
 
   (** Return the list of dependencies needed for linking this library/exe *)
   val requires_link : t -> lib list Resolve.t Memo.Lazy.t
@@ -83,6 +77,7 @@ module Compile : sig
 
   val test :
        t
+    -> Dep_graph.t Ml_kind.Dict.t option
     -> string list Resolve.Memo.t
        * lib list Resolve.t Memo.t
        * lib list Resolve.t Memo.Lazy.t
@@ -161,7 +156,6 @@ module DB : sig
   val get_compile_info_per_module :
        t
     -> ?modules:Modules.t
-    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
     -> allow_overlaps:bool
     -> Lib_name.t
     -> (lib * Compile.t) Memo.t
@@ -192,7 +186,6 @@ module DB : sig
   val resolve_user_written_deps_per_module :
        t
     -> ?modules:Modules.t
-    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
     -> [ `Exe of (Import.Loc.t * string) list | `Melange_emit of string ]
     -> allow_overlaps:bool
     -> forbidden_libraries:(Loc.t * Lib_name.t) list

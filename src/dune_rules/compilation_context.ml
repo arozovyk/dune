@@ -151,28 +151,36 @@ module Includes = struct
       ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
       ~requires ~md
       ~(test :
-         string list Resolve.Memo.t
-         * Lib.t list Resolve.t Memo.t
-         * Lib.t list Resolve.t Memo.Lazy.t) ~dep_graphs ~flags =
-    (* let flags =
-         Action_builder.map2
-           (Action_builder.map2
-              (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
-              (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
-              ~f:List.append)
-           (Ocaml_flags.get flags Lib_mode.Melange)
-           ~f:List.append
-       in *)
+            Dep_graph.t Ml_kind.Dict.t option
+         -> string list Resolve.Memo.t
+            * Lib.t list Resolve.t Memo.t
+            * Lib.t list Resolve.t Memo.Lazy.t) ~dep_graphs ~flags =
     ignore md;
     ignore test;
     ignore flags;
-    ignore dep_graphs;
     ignore lib_to_entry_modules_map;
     ignore lib_top_module_map;
+    let path =
+      match Module.file ~ml_kind:Impl md with
+      | Some s -> s |> Path.to_string |> String.split ~on:'/'
+      | None -> []
+    in
+    if List.exists path ~f:(fun s -> String.equal "menhir" s) then
+      Dune_util.Log.info
+        [ Pp.textf "Menhir module %s " (Module.name md |> Module_name.to_string)
+        ]
+    else
+      Dune_util.Log.info
+        [ Pp.textf "Not Menhir module %s "
+            (Module.name md |> Module_name.to_string)
+        ];
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
-    let a, b, c = test in
-
+    let a, b, c =
+      test
+        (if List.exists path ~f:(fun s -> String.equal "menhir" s) then None
+        else Some dep_graphs)
+    in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     (* let deps =
          let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
@@ -183,7 +191,6 @@ module Includes = struct
            Action_builder.map2 module_deps_impl module_deps_intf
              ~f:(fun inft impl -> List.append inft impl)
          in
-
          let cmb_flags =
            Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
          in
@@ -353,10 +360,11 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
     ?(test =
-      ( Resolve.Memo.return []
-      , Resolve.Memo.return []
-      , Memo.Lazy.of_val (Resolve.return []) ))
-    ?(lib_to_entry_modules_map = Resolve.Memo.return []) ?dep_graphs () =
+      fun _ ->
+        ( Resolve.Memo.return []
+        , Resolve.Memo.return []
+        , Memo.Lazy.of_val (Resolve.return []) ))
+    ?(lib_to_entry_modules_map = Resolve.Memo.return []) () =
   let open Memo.O in
   let project = Scope.project scope in
   ignore test;
@@ -393,10 +401,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ; stdlib
     }
   in
-  let+ dep_graphs =
-    match dep_graphs with
-    | Some dep_graphs -> Memo.return dep_graphs
-    | None -> Dep_rules.rules ocamldep_modules_data
+  let+ dep_graphs = Dep_rules.rules ocamldep_modules_data
   and+ bin_annot =
     match bin_annot with
     | Some b -> Memo.return b
@@ -506,10 +511,10 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~test:
+      ~test:(fun _ ->
         ( Resolve.Memo.return []
         , Resolve.Memo.return []
-        , Memo.Lazy.of_val (Resolve.return []) )
+        , Memo.Lazy.of_val (Resolve.return []) ))
       ~requires ~flags ()
   in
   { cctx with

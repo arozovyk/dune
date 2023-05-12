@@ -1687,12 +1687,13 @@ module Compile = struct
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
     ; merlin_ident : Merlin_ident.t
     ; test :
-        string list Resolve.Memo.t
-        * lib list Resolve.t Memo.t
-        * lib list Resolve.t Memo.Lazy.t
+           Dep_graph.t Ml_kind.Dict.t option
+        -> string list Resolve.Memo.t
+           * lib list Resolve.t Memo.t
+           * lib list Resolve.t Memo.Lazy.t
     }
 
-  let for_lib ?modules ?dep_graphs ~allow_overlaps db (t : lib) =
+  let for_lib ?modules ~allow_overlaps db (t : lib) =
     let requires =
       (* This makes sure that the default implementation belongs to the same
          package before we build the virtual library *)
@@ -1713,11 +1714,11 @@ module Compile = struct
                 ~forbidden_libraries:Map.empty)
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
-    let _test2 =
+    let _test2 dep_graphs =
       match modules with
       | Some mods ->
         let r =
-          Modules.fold_no_vlib mods ~init:[] ~f:(fun m acc ->
+          Modules.fold_user_available mods ~init:[] ~f:(fun m acc ->
               let deps =
                 match dep_graphs with
                 | Some dep_graphs ->
@@ -1926,18 +1927,17 @@ module DB = struct
         [ ("name", Lib_name.to_dyn name) ]
     | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
 
-  let get_compile_info_per_module t ?modules ?dep_graphs ~allow_overlaps name =
+  let get_compile_info_per_module t ?modules ~allow_overlaps name =
     let open Memo.O in
     let+ find = find_even_when_hidden t name in
     match find with
     | None ->
       Code_error.raise "Lib.DB.get_compile_info got library that doesn't exist"
         [ ("name", Lib_name.to_dyn name) ]
-    | Some lib ->
-      (lib, Compile.for_lib ?modules ?dep_graphs ~allow_overlaps t lib)
+    | Some lib -> (lib, Compile.for_lib ?modules ~allow_overlaps t lib)
 
-  let resolve_user_written_deps_per_module t ?modules ?dep_graphs targets
-      ~allow_overlaps ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident
+  let resolve_user_written_deps_per_module t ?modules targets ~allow_overlaps
+      ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident
       ~(entries_f : lib -> Module_name.t list Resolve.Memo.t) =
     let resolved =
       Memo.lazy_ (fun () ->
@@ -2040,11 +2040,11 @@ module DB = struct
       let+ resolved = Memo.Lazy.force resolved in
       resolved.requires
     in
-    let _test2 =
+    let _test2 dep_graphs=
       match modules with
       | Some mods ->
         let r =
-          Modules.fold_no_vlib mods ~init:[] ~f:(fun m acc ->
+          Modules.fold_user_written mods ~init:[] ~f:(fun m acc ->
               let deps =
                 match dep_graphs with
                 | Some dep_graphs ->
@@ -2166,7 +2166,7 @@ module DB = struct
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
-    ; test =
+    ; test = fun _ -> 
         ( Resolve.Memo.return []
         , Resolve.Memo.return []
         , Memo.Lazy.of_val (Resolve.return []) )

@@ -1,8 +1,7 @@
 open Import
 
 val compile_info :
-     ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
-  -> ?modules:Modules.t
+     ?modules:Modules.t
   -> scope:Scope.t
   -> sctx:Super_context.t
   -> Dune_file.Executables.t
