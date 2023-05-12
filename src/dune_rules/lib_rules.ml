@@ -558,12 +558,11 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
       ~ident:(Lib.Compile.merlin_ident compile_info)
       ~modes:(`Lib (Lib_info.modes lib_info)) )
 
-let compile_info ?dep_graphs ?modules lib scope  =
-  ignore dep_graphs;
-  ignore modules;
+let compile_info ?dep_graphs ?modules lib scope =
   let open Library in
   let buildable = lib.buildable in
-  Lib.DB.get_compile_info (Scope.libs scope) (Library.best_name lib)
+  Lib.DB.get_compile_info_per_module ?modules ?dep_graphs (Scope.libs scope)
+    (Library.best_name lib)
     ~allow_overlaps:buildable.allow_overlapping_dependencies
 
 let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])

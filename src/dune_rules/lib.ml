@@ -1694,8 +1694,6 @@ module Compile = struct
 
   let for_lib ?modules ?dep_graphs ~allow_overlaps db (t : lib) =
     let requires =
-      ignore modules;
-      ignore dep_graphs;
       (* This makes sure that the default implementation belongs to the same
          package before we build the virtual library *)
       let* () =
@@ -1929,15 +1927,14 @@ module DB = struct
     | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
 
   let get_compile_info_per_module t ?modules ?dep_graphs ~allow_overlaps name =
-    ignore modules;
-    ignore dep_graphs;
     let open Memo.O in
     let+ find = find_even_when_hidden t name in
     match find with
     | None ->
       Code_error.raise "Lib.DB.get_compile_info got library that doesn't exist"
         [ ("name", Lib_name.to_dyn name) ]
-    | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
+    | Some lib ->
+      (lib, Compile.for_lib ?modules ?dep_graphs ~allow_overlaps t lib)
 
   let resolve_user_written_deps_per_module t ?modules ?dep_graphs targets
       ~allow_overlaps ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident
