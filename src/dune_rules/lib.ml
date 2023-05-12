@@ -1692,8 +1692,10 @@ module Compile = struct
         * lib list Resolve.t Memo.Lazy.t
     }
 
-  let for_lib ~allow_overlaps db (t : lib) =
+  let for_lib ?modules ?dep_graphs ~allow_overlaps db (t : lib) =
     let requires =
+      ignore modules;
+      ignore dep_graphs;
       (* This makes sure that the default implementation belongs to the same
          package before we build the virtual library *)
       let* () =
@@ -1713,6 +1715,50 @@ module Compile = struct
                 ~forbidden_libraries:Map.empty)
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
+    let _test2 =
+      match modules with
+      | Some mods ->
+        let r =
+          Modules.fold_no_vlib mods ~init:[] ~f:(fun m acc ->
+              let deps =
+                match dep_graphs with
+                | Some dep_graphs ->
+                  let dep_graph_impl =
+                    Ml_kind.Dict.get dep_graphs Ml_kind.Impl
+                  in
+                  let dep_graph_intf =
+                    Ml_kind.Dict.get dep_graphs Ml_kind.Intf
+                  in
+                  let module_deps_impl = Dep_graph.deps_of dep_graph_impl m in
+                  let module_deps_intf = Dep_graph.deps_of dep_graph_intf m in
+                  let cmb_itf_impl =
+                    Action_builder.map2 module_deps_impl module_deps_intf
+                      ~f:(fun inft impl -> List.append inft impl)
+                  in
+                  let d =
+                    Action_builder.run cmb_itf_impl Action_builder.Eager
+                    |> Resolve.Memo.lift_memo
+                  in
+                  d
+                | None -> Resolve.Memo.return ([], Dep.Map.empty)
+              in
+
+              Resolve.Memo.map deps ~f:(fun (odeps, _) ->
+                  Printf.sprintf "Module : %s\nHas deps : [%s]"
+                    (Module.name m |> Module_name.to_string)
+                    (List.map odeps ~f:(fun md ->
+                         match md with
+                         | Module_dep.Local m ->
+                           Module.name m |> Module_name.to_string
+                         | Module_dep.External en ->
+                           Module_dep.External_name.to_string en)
+                    |> String.concat ~sep:","))
+              :: acc)
+          |> Resolve.Memo.all
+        in
+        (r, requires, requires_link)
+      | None -> (Resolve.Memo.return [], requires, requires_link)
+    in
     { direct_requires = requires
     ; requires_link
     ; direct_per_module = Resolve.Memo.return Module_name.Unique.Map.empty
@@ -1721,10 +1767,7 @@ module Compile = struct
     ; pps = Memo.return t.pps
     ; sub_systems = t.sub_systems
     ; merlin_ident
-    ; test =
-        ( Resolve.Memo.return []
-        , Resolve.Memo.return []
-        , Memo.Lazy.of_val (Resolve.return []) )
+    ; test = _test2
     }
 
   let direct_requires t = t.direct_requires
@@ -1885,13 +1928,20 @@ module DB = struct
         [ ("name", Lib_name.to_dyn name) ]
     | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
 
+  let get_compile_info_per_module t ?modules ?dep_graphs ~allow_overlaps name =
+    ignore modules;
+    ignore dep_graphs;
+    let open Memo.O in
+    let+ find = find_even_when_hidden t name in
+    match find with
+    | None ->
+      Code_error.raise "Lib.DB.get_compile_info got library that doesn't exist"
+        [ ("name", Lib_name.to_dyn name) ]
+    | Some lib -> (lib, Compile.for_lib ~allow_overlaps t lib)
+
   let resolve_user_written_deps_per_module t ?modules ?dep_graphs targets
       ~allow_overlaps ~forbidden_libraries deps ~pps ~dune_version ~merlin_ident
       ~(entries_f : lib -> Module_name.t list Resolve.Memo.t) =
-    ignore entries_f;
-    ignore modules;
-    ignore dep_graphs;
-
     let resolved =
       Memo.lazy_ (fun () ->
           Resolve_names.resolve_deps_and_add_runtime_deps t deps ~pps

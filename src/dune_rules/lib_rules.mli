@@ -9,7 +9,12 @@ val foreign_rules :
   -> dir_contents:Dir_contents.t
   -> unit Memo.t
 
-val compile_info : Library.t -> Scope.t -> (Lib.t * Lib.Compile.t) Memo.t
+val compile_info :
+     ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
+  -> ?modules:Modules.t
+  -> Library.t
+  -> Scope.t
+  -> (Lib.t * Lib.Compile.t) Memo.t
 
 val rules :
      ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t

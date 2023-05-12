@@ -445,7 +445,7 @@ let setup_build_archives (lib : Dune_file.Library.t) ~top_sorted_modules ~cctx
     (fun () -> build_shared ~native_archives ~sctx lib ~dir ~flags)
 
 let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
-    ~compile_info ~lib_to_entry_modules_map ~lib_top_module_map =
+    ~compile_info ~lib_to_entry_modules_map ~lib_top_module_map ~dep_graphs =
   let* flags = Super_context.ocaml_flags sctx ~dir lib.buildable.flags
   and* vimpl = Virtual_rules.impl sctx ~lib ~scope in
   let obj_dir = Library.obj_dir ~dir lib in
@@ -485,7 +485,7 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
     ~modules ~flags ~requires_compile ~requires_link ~preprocessing:pp
     ~opaque:Inherit_from_settings ~js_of_ocaml:(Some js_of_ocaml)
     ?stdlib:lib.stdlib ~package ?vimpl ?public_lib_name ~modes
-    ~lib_top_module_map ~lib_to_entry_modules_map
+    ~lib_top_module_map ~lib_to_entry_modules_map ~dep_graphs
 
 let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
     ~dir_contents ~compile_info =
@@ -558,7 +558,9 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
       ~ident:(Lib.Compile.merlin_ident compile_info)
       ~modes:(`Lib (Lib_info.modes lib_info)) )
 
-let compile_info lib scope =
+let compile_info ?dep_graphs ?modules lib scope  =
+  ignore dep_graphs;
+  ignore modules;
   let open Library in
   let buildable = lib.buildable in
   Lib.DB.get_compile_info (Scope.libs scope) (Library.best_name lib)
@@ -574,7 +576,7 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
   in
   let* vimpl = Virtual_rules.impl sctx ~lib ~scope in
   let obj_dir = Library.obj_dir ~dir lib in
-  let _ocamldep_modules_data : Ocamldep.Modules_data.t =
+  let ocamldep_modules_data : Ocamldep.Modules_data.t =
     { dir
     ; sandbox = Sandbox_config.no_special_requirements
     ; obj_dir
@@ -584,14 +586,16 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ; stdlib = lib.stdlib
     }
   in
-(*   let* _dep_graphs = Dep_rules.rules ocamldep_modules_data in 
- *)
-  let* local_lib, compile_info = compile_info lib scope in
+  let* dep_graphs = Dep_rules.rules ocamldep_modules_data in
+
+  let* local_lib, compile_info =
+    compile_info ~dep_graphs lib scope ~modules:source_modules
+  in
   let local_lib = Lib.Local.of_lib_exn local_lib in
   let f () =
     let* cctx =
       cctx lib ~sctx ~source_modules ~dir ~scope ~expander ~compile_info
-        ~lib_to_entry_modules_map ~lib_top_module_map
+        ~lib_to_entry_modules_map ~lib_top_module_map ~dep_graphs
     in
     let* () =
       match buildable.ctypes with

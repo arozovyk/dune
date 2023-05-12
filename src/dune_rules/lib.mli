@@ -63,7 +63,13 @@ module Compile : sig
 
   type t
 
-  val for_lib : allow_overlaps:bool -> db -> lib -> t
+  val for_lib :
+       ?modules:Modules.t
+    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
+    -> allow_overlaps:bool
+    -> db
+    -> lib
+    -> t
 
   (** Return the list of dependencies needed for linking this library/exe *)
   val requires_link : t -> lib list Resolve.t Memo.Lazy.t
@@ -151,6 +157,14 @@ module DB : sig
       libraries that are optional and not available as well. *)
   val get_compile_info :
     t -> allow_overlaps:bool -> Lib_name.t -> (lib * Compile.t) Memo.t
+
+  val get_compile_info_per_module :
+       t
+    -> ?modules:Modules.t
+    -> ?dep_graphs:Dep_graph.t Ml_kind.Dict.t
+    -> allow_overlaps:bool
+    -> Lib_name.t
+    -> (lib * Compile.t) Memo.t
 
   val resolve : t -> Loc.t * Lib_name.t -> lib Resolve.Memo.t
 
