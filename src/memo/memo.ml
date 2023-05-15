@@ -823,7 +823,13 @@ module Computation = struct
       let dag_node = Lazy_dag_node.force dag_node ~dep_node in
       Call_stack.add_path_to ~dag_node >>= function
       | Ok () -> Fiber.Ivar.read ivar >>| Result.ok
-      | Error _ as cycle_error -> Fiber.return cycle_error)
+      | Error e as cycle_error ->
+        Dune_console.print
+          [ Pp.textf "Cycle Error here : %s "
+              (Cycle_error.to_dyn e |> Dyn.to_string)
+          ];
+
+        Fiber.return cycle_error)
 end
 
 module Error_handler : sig
