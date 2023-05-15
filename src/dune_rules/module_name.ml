@@ -152,3 +152,5 @@ module Path = struct
 end
 
 let wrap t ~with_ = Path.wrap (t :: with_)
+
+let hash t = String.hash (to_string t)

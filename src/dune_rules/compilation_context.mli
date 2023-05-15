@@ -87,6 +87,8 @@ val sandbox : t -> Sandbox_config.t
 
 val set_sandbox : t -> Sandbox_config.t -> t
 
+val count_module : int Module_name.Map.t ref
+
 val package : t -> Package.t option
 
 val vimpl : t -> Vimpl.t option

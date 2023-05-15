@@ -215,6 +215,7 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Memo.parallel_iter dep_graphs.for_exes
       ~f:(Check_rules.add_cycle_check sctx ~dir)
   in
+
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
       ~source_dirs:Path.Source.Set.empty ~libname:None ~preprocess ~obj_dir

@@ -18,6 +18,8 @@ val uncapitalize : t -> string
 
 val pp_quote : Format.formatter -> t -> unit
 
+val hash : t -> int
+
 module Per_item : sig
   include Per_item_intf.S with type key = t
 

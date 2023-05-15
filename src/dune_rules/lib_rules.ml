@@ -521,6 +521,7 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
     let+ () = Check_rules.add_obj_dir sctx ~obj_dir mode in
     info
   in
+ 
   let+ () =
     Memo.when_
       (not (Library.is_virtual lib))

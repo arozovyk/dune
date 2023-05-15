@@ -1,12 +1,14 @@
 open Import
 
+let count_module = ref Module_name.Map.empty
+
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
   let _filter_with_odeps libs deps md lib_top_module_map
       lib_to_entry_modules_map =
     let open Resolve.Memo.O in
-    let* (module_deps, flags), _ = deps in
+    let* (module_deps, flags), _ = deps md in
     let* lib_to_entry_modules_map = lib_to_entry_modules_map in
     let lib_to_entry_modules_map =
       Lib.Map.of_list lib_to_entry_modules_map
@@ -143,13 +145,34 @@ module Includes = struct
                     else true)
               else true)
 
-  let resolve_module_odeps dep_graphs modules =
+  let incr_mn =
+    (*     let sourceitf = Module.sources md in
+ *)
+    let mc =
+      Memo.create "count module"
+        ~input:(module Module_name)
+        (fun md ->
+          Dune_util.Log.info
+            [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ];
+          if
+            Module_name.Map.find_key !count_module ~f:(fun mn' ->
+                Module_name.equal md mn')
+            |> Option.is_some
+          then
+            let old_v = Module_name.Map.find_exn !count_module md in
+
+            Memo.return
+              (count_module := Module_name.Map.set !count_module md (old_v + 1))
+          else
+            Memo.return (count_module := Module_name.Map.set !count_module md 1))
+    in
+    mc
+
+  let incr_mn = Memo.exec incr_mn
+
+  let _resolve_module_odeps dep_graphs modules =
     let open Resolve.Memo.O in
     let deps md =
-      Dune_util.Log.info
-        [ Pp.textf "gona get deps of %s"
-            (Module.name md |> Module_name.to_string)
-        ];
       let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
       let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
       let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
@@ -176,6 +199,7 @@ module Includes = struct
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~modules ~project
       ~opaque ~requires ~md ~dep_graphs ~flags =
+    let memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -191,7 +215,11 @@ module Includes = struct
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     ignore lib_to_entry_modules_map;
     ignore lib_top_module_map;
-    let _deps =
+    let _deps md =
+      Dune_util.Log.info
+        [ Pp.textf "gona get deps of %s"
+            (Module.name md |> Module_name.to_string)
+        ];
       let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
       let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
       let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
@@ -207,15 +235,17 @@ module Includes = struct
       Action_builder.run cmb_flags Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
+
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ _ = resolve_module_odeps dep_graphs modules in
-            (* let+ libs =
-                 filter_with_odeps libs deps md lib_top_module_map
-                   lib_to_entry_modules_map
-               in *)
+            let* _ = memo_md in
+            (*  let+ _ = resolve_module_odeps dep_graphs modules in *)
+            let+ libs =
+              _filter_with_odeps libs _deps md lib_top_module_map
+                lib_to_entry_modules_map
+            in
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -226,8 +256,12 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* libs = requires in
-            let+ _ = resolve_module_odeps dep_graphs modules in
-
+            let* _ = memo_md in
+            (*   let+ _ = resolve_module_odeps dep_graphs modules in *)
+            let+ libs =
+              _filter_with_odeps libs _deps md lib_top_module_map
+                lib_to_entry_modules_map
+            in
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
