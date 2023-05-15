@@ -80,7 +80,7 @@ let build =
               Unix.kill (Pid.to_int pid) Sys.sigterm);
           Fiber.return ())
         (fun () ->
-          let+ res = Build_cmd.run_build_system ~common ~request in
+          let+ res = Build_cmd.run_build_system ~common ~request () in
           match res with
           | Ok () -> ()
           | Error `Already_reported ->

@@ -1,8 +1,10 @@
 open Import
 
 val run_build_system :
-     common:Common.t
+     ?from:string
+  -> common:Common.t
   -> request:(Dune_rules.Main.build_system -> unit Action_builder.t)
+  -> unit
   -> (unit, [ `Already_reported ]) result Fiber.t
 
 val runtest : unit Cmd.t

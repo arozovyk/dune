@@ -51,7 +51,7 @@ let get_error_from_exn ?(from = "unk") = function
       { responsible = User
       ; msg =
           User_message.make ~prefix:User_error.prefix
-            [ Pp.text "Dependency cycle between:"
+            [ Pp.textf "Dependency cycle between:%s" from
             ; Pp.chain cycle ~f:(fun p -> p)
             ]
       ; has_embedded_location = false
@@ -135,7 +135,7 @@ let format_memo_stack pps =
                    (Pp.seq (Pp.verbatim "-> ")
                       (Pp.seq (Pp.text "required by ") pp))))))
 
-let gen_report exn backtrace =
+let gen_report ?(from = "unk") exn backtrace =
   let exn, memo_stack =
     match exn with
     | Memo.Error.E err -> (Memo.Error.get err, Memo.Error.stack err)
@@ -145,7 +145,7 @@ let gen_report exn backtrace =
   | Already_reported -> ()
   | _ ->
     let { responsible; msg; has_embedded_location; needs_stack_trace } =
-      get_error_from_exn exn
+      get_error_from_exn ~from:(from ^ "-> gen_report") exn
     in
     let msg =
       if msg.loc = Some Loc.none then { msg with loc = None } else msg
@@ -199,7 +199,7 @@ let gen_report exn backtrace =
     in
     Console.print_user_message msg
 
-let report { Exn_with_backtrace.exn; backtrace } =
-  gen_report exn (Some backtrace)
+let report ?(from="unk"){ Exn_with_backtrace.exn; backtrace } =
+  gen_report ~from:(from^"->report") exn (Some backtrace)
 
 let report_exception exn = gen_report exn None

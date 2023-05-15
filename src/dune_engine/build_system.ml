@@ -1154,7 +1154,7 @@ let caused_by_cancellation (exn : Exn_with_backtrace.t) =
     | _ -> false)
   | _ -> false
 
-let report_early_exn exn =
+let report_early_exn ?(from = "unk") exn =
   match caused_by_cancellation exn with
   | true -> Fiber.return ()
   | false -> (
@@ -1162,7 +1162,8 @@ let report_early_exn exn =
     let errors = Error.of_exn exn in
     let+ () = State.add_errors errors in
     match !Clflags.report_errors_config with
-    | Early | Twice -> Dune_util.Report_error.report exn
+    | Early | Twice ->
+      Dune_util.Report_error.report ~from:(from ^ "->report_early_exn") exn
     | Deterministic -> ())
 
 let handle_final_exns exns =
@@ -1170,11 +1171,12 @@ let handle_final_exns exns =
   | Early -> ()
   | Twice | Deterministic ->
     let report exn =
-      if not (caused_by_cancellation exn) then Dune_util.Report_error.report exn
+      if not (caused_by_cancellation exn) then
+        Dune_util.Report_error.report ~from:"handle_final_exns" exn
     in
     List.iter exns ~f:report
 
-let run f =
+let run ?(from="unk") f =
   let open Fiber.O in
   Hooks.End_of_build.once Diff_promotion.finalize;
   let* () = State.reset_progress () in
@@ -1182,7 +1184,7 @@ let run f =
   let f () =
     let* res =
       Fiber.collect_errors (fun () ->
-          Memo.run_with_error_handler f ~handle_error_no_raise:report_early_exn)
+          Memo.run_with_error_handler f ~handle_error_no_raise:(report_early_exn ~from:(from^"-> Build_system.run")))
     in
     match res with
     | Ok res ->

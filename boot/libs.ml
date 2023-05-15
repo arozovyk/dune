@@ -1,6 +1,6 @@
 let executables = [ "main" ]
 
-let external_libraries = [ "unix"; "threads" ]
+let external_libraries = [ "unix"; "threads"; "memtrace" ]
 
 let local_libraries =
   [ ("otherlibs/ordering", Some "Ordering", false, None)

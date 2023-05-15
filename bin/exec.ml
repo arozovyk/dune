@@ -236,7 +236,7 @@ module Exec_context = struct
             (* TODO we should release the dune lock. But we aren't doing it
                because we don't unload the database files we've marshalled.
             *)
-            Build_system.run get_path_and_build_if_necessary)
+            Build_system.run ~from:"run_eager_watch" get_path_and_build_if_necessary)
       ; args
       ; env
       }

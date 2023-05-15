@@ -22,10 +22,11 @@ let with_metrics ~common f =
                 (String.Map.to_list (Metrics.Timer.aggregated_timers ())))));
       Fiber.return ())
 
-let run_build_system ~common ~request =
+let run_build_system ?(from = "unkw") ~common ~request () =
   let run ~(toplevel : unit Memo.Lazy.t) =
     with_metrics ~common (fun () ->
-        Build_system.run (fun () -> Memo.Lazy.force toplevel))
+        Build_system.run ~from:(from ^ "->run_build_system") (fun () ->
+            Memo.Lazy.force toplevel))
   in
   let open Fiber.O in
   Fiber.finalize
@@ -78,7 +79,10 @@ let run_build_system ~common ~request =
 
 let run_build_command_poll_eager ~(common : Common.t) ~config ~request : unit =
   Scheduler.go_with_rpc_server_and_console_status_reporting ~common ~config
-    (fun () -> Scheduler.Run.poll (run_build_system ~common ~request))
+    (fun () ->
+      Scheduler.Run.poll
+        (run_build_system ~from:"run_build_command_poll_eager" ~common ~request
+           ()))
 
 let run_build_command_poll_passive ~(common : Common.t) ~config ~request:_ :
     unit =
@@ -101,23 +105,31 @@ let run_build_command_poll_passive ~(common : Common.t) ~config ~request:_ :
            let request setup =
              Target.interpret_targets (Common.root common) config setup targets
            in
-           (run_build_system ~common ~request, ivar)))
+           ( run_build_system ~from:"run_build_command_poll_passive" () ~common
+               ~request
+           , ivar )))
 
-let run_build_command_once ~(common : Common.t) ~config ~request =
+let run_build_command_once ?(from = "unk") ~(common : Common.t) ~config ~request
+    () =
   let open Fiber.O in
   let once () =
-    let+ res = run_build_system ~common ~request in
+    let+ res =
+      run_build_system
+        ~from:(from ^ "->run_build_command_once")
+        ~common ~request ()
+    in
     match res with
     | Error `Already_reported -> raise Dune_util.Report_error.Already_reported
     | Ok () -> ()
   in
   Scheduler.go ~common ~config once
 
-let run_build_command ~(common : Common.t) ~config ~request =
+let run_build_command ?(from = "unk ") ~(common : Common.t) ~config ~request ()
+    =
   (match Common.watch common with
   | Yes Eager -> run_build_command_poll_eager
   | Yes Passive -> run_build_command_poll_passive
-  | No -> run_build_command_once)
+  | No -> run_build_command_once ~from:(from ^ "->run_build_command") ())
     ~common ~config ~request
 
 let runtest_info =
@@ -151,7 +163,7 @@ let runtest_term =
              ~contexts:setup.contexts dir
            |> Alias.request))
   in
-  run_build_command ~common ~config ~request
+  run_build_command ~from:"runtest_term" ~common ~config ~request ()
 
 let runtest = Cmd.v runtest_info runtest_term
 
@@ -185,7 +197,7 @@ let build =
     let request setup =
       Target.interpret_targets (Common.root common) config setup targets
     in
-    run_build_command ~common ~config ~request
+    run_build_command ~from:"build" ~common ~config ~request ()
   in
   Cmd.v (Cmd.info "build" ~doc ~man ~envs:Common.envs) term
 
@@ -210,6 +222,6 @@ let fmt =
         ~contexts:setup.contexts dir
       |> Alias.request
     in
-    run_build_command ~common ~config ~request
+    run_build_command ~common ~config ~request ()
   in
   Cmd.v (Cmd.info "fmt" ~doc ~man ~envs:Common.envs) term

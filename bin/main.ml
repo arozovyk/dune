@@ -104,5 +104,5 @@ let () =
   | Scheduler.Run.Shutdown.E (Signal _) -> exit_and_flush Signal
   | exn ->
     let exn = Exn_with_backtrace.capture exn in
-    Dune_util.Report_error.report exn;
+    Dune_util.Report_error.report ~from:"main" exn;
     exit_and_flush Error

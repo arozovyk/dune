@@ -49,7 +49,10 @@ val dep_on_alias_definition :
 
 (** {2 Running the build system} *)
 
-val run : (unit -> 'a Memo.t) -> ('a, [ `Already_reported ]) Result.t Fiber.t
+val run :
+     ?from:string
+  -> (unit -> 'a Memo.t)
+  -> ('a, [ `Already_reported ]) Result.t Fiber.t
 
 (** A variant of [run] that raises an [Already_reported] exception on error. *)
 val run_exn : (unit -> 'a Memo.t) -> 'a Fiber.t

@@ -9,7 +9,7 @@ open Stdune
     reported.
 
     We cache what is actually printed to the screen. *)
-val report : Exn_with_backtrace.t -> unit
+val report : ?from:string -> Exn_with_backtrace.t -> unit
 
 val report_exception : exn -> unit
 
