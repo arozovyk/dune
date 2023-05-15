@@ -85,7 +85,7 @@ let add_rule sctx =
   Super_context.add_rule sctx ~dir
 
 module Paths = struct
-  let odoc_support_dirname = "odoc.support"
+  let odoc_support_dirname = "_odoc_support"
 
   let root (context : Context.t) =
     Path.Build.relative context.Context.build_dir "_doc"
@@ -219,7 +219,8 @@ let module_deps (m : Module.t) ~obj_dir ~(dep_graphs : Dep_graph.Ml_kind.t) =
         (* When a module has no .mli, use the dependencies for the .ml *)
         Dep_graph.deps_of dep_graphs.impl m
     in
-    List.map deps ~f:(fun m -> Path.build (Obj_dir.Module.odoc obj_dir m)))
+    List.filter_map ~f:Module_dep.filter_local deps
+    |> List.map ~f:(fun m -> Path.build (Obj_dir.Module.odoc obj_dir m)))
 
 let compile_module sctx ~obj_dir (m : Module.t) ~includes:(file_deps, iflags)
     ~dep_graphs ~pkg_or_lnu ~mode =
