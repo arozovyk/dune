@@ -458,6 +458,13 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
   let modules = Vimpl.impl_modules vimpl modules in
   let requires_compile = Lib.Compile.direct_requires compile_info in
   let requires_link = Lib.Compile.requires_link compile_info in
+  let entry_names_closure = Odoc.entry_modules_by_lib sctx in
+  let direct_requires_per_module =
+    Lib.Compile.direct_requires_per_module compile_info entry_names_closure
+  in
+  let requires_link_per_module =
+    Lib.Compile.requires_link_per_module compile_info entry_names_closure
+  in
   let modes =
     let { Lib_config.has_native; _ } = ctx.lib_config in
     Dune_file.Mode_conf.Lib.Set.eval_detailed lib.modes ~has_native
@@ -485,7 +492,8 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
     ~modules ~flags ~requires_compile ~requires_link ~preprocessing:pp
     ~opaque:Inherit_from_settings ~js_of_ocaml:(Some js_of_ocaml)
     ?stdlib:lib.stdlib ~package ?vimpl ?public_lib_name ~modes
-    ~lib_top_module_map ~lib_to_entry_modules_map
+    ~lib_top_module_map ~lib_to_entry_modules_map ~direct_requires_per_module
+    ~requires_link_per_module
 
 let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
     ~dir_contents ~compile_info =
@@ -552,15 +560,15 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
   in
 
   (* Dune_util.Log.info
-    [ Pp.textf "Exe :Modules calls for deps : %d\n"
-        (Module_name.Map.foldi !Module_compilation.count_module ~init:0
-           ~f:(fun _a b c -> c + b))
-      (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
-         ~f:(fun a b c ->
-           c
-           ^ Printf.sprintf "Module %s has %d calls \n"
-               (Module_name.to_string a) b)) *)
-    ]; *)
+     [ Pp.textf "Exe :Modules calls for deps : %d\n"
+         (Module_name.Map.foldi !Module_compilation.count_module ~init:0
+            ~f:(fun _a b c -> c + b))
+       (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
+          ~f:(fun a b c ->
+            c
+            ^ Printf.sprintf "Module %s has %d calls \n"
+                (Module_name.to_string a) b)) *)
+     ]; *)
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
       ~source_dirs:Path.Source.Set.empty ~preprocess

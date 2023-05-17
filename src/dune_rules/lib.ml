@@ -1629,6 +1629,185 @@ end = struct
     Closure.result res ~linking:true
 end
 
+module Local : sig
+  type t = private lib
+
+  val of_lib : lib -> t option
+
+  val of_lib_exn : lib -> t
+
+  val to_lib : t -> lib
+
+  val obj_dir : t -> Path.Build.t Obj_dir.t
+
+  val info : t -> Path.Build.t Lib_info.t
+
+  val to_dyn : t -> Dyn.t
+
+  val equal : t -> t -> bool
+
+  val hash : t -> int
+
+  include Comparable_intf.S with type key := t
+end = struct
+  type nonrec t = t
+
+  let to_lib t = t
+
+  let of_lib (t : lib) = Option.some_if (is_local t) t
+
+  let of_lib_exn t =
+    match of_lib t with
+    | Some l -> l
+    | None -> Code_error.raise "Lib.Local.of_lib_exn" [ ("l", to_dyn t) ]
+
+  let obj_dir t = Obj_dir.as_local_exn (Lib_info.obj_dir t.info)
+
+  let info t = Lib_info.as_local_exn t.info
+
+  module Set = Set
+  module Map = Map
+
+  let to_dyn = to_dyn
+
+  let equal = equal
+
+  let hash = hash
+end
+
+let _filter_with_odeps (libs : lib list) module_deps flags emns =
+  let open Resolve.Memo.O in
+  let rec flag_open_present entry_lib_name l =
+    match l with
+    | flag :: entry_name :: t ->
+      if
+        String.equal flag "-open"
+        && String.is_prefix ~prefix:entry_lib_name entry_name
+      then true
+      else flag_open_present entry_lib_name (entry_name :: t)
+    | _ -> false
+  in
+  let dep_names =
+    List.map module_deps ~f:(fun mdep ->
+        let open Module_dep in
+        match mdep with
+        (* Lib shadowing by a local module obliges
+           us to also check if a lib is a local module *)
+        | Local m -> Module.name m |> Module_name.to_string
+        | External mname -> External_name.to_string mname)
+  in
+  let exists_in_odeps lib_name =
+    List.exists dep_names ~f:(fun odep ->
+        (*  Dune_util.Log.info [ Pp.textf "Comparing %s %s \n" lib_name odep ]; *)
+        String.equal lib_name odep || String.is_prefix ~prefix:odep lib_name)
+  in
+  (* if
+       (* FIXME: menhir mocks (i.e melange-compiler-libs.0.0.1-414) ? we skip for now  *)
+       String.is_suffix (Module.name md |> Module_name.to_string) ~suffix:"__mock"
+     then libs
+     else *)
+  let* entry_names_map =
+    List.map libs ~f:(fun lib ->
+        let local_lib = Local.of_lib lib in
+        if Option.is_none local_lib then Resolve.Memo.return (lib, [])
+        else
+          let em =
+            emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
+          in
+          Resolve.Memo.map em ~f:(fun emns_l -> (lib, emns_l)))
+    |> Resolve.Memo.all
+  in
+  let r =
+    List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
+        let entries_empty = List.is_empty entry_names in
+        let emnstr =
+          List.map entry_names ~f:(fun m ->
+              Module.name m |> Module_name.to_string)
+        in
+        let melange_mode =
+          Lib_mode.Map.get (info lib |> Lib_info.modes) Lib_mode.Melange
+        in
+        let implements = Option.is_some (Lib_info.implements (info lib)) in
+        let local = Local.of_lib lib |> Option.is_none in
+        let virtual_ = Option.is_some (Lib_info.virtual_ (info lib)) in
+        if implements || virtual_ || local || melange_mode || entries_empty then
+          Some lib
+        else if
+          List.exists emnstr ~f:(fun emn ->
+              let is_melange_wrapper = String.equal "Melange_wrapper" emn in
+              let is_unwrapped = flag_open_present emn flags in
+              is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
+        then Some lib
+        else None)
+  in
+  Resolve.Memo.return r
+(* List.filter_map libs ~f:(fun lib ->
+    let local_lib = Local.of_lib lib in
+    if Option.is_none local_lib then Some (Resolve.Memo.return lib)
+    else
+      let entry_module_names =
+        emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
+      in
+      let list_r =
+        Resolve.Memo.map entry_module_names ~f:(fun entry_module_names ->
+            let melange_mode =
+              Lib_mode.Map.get (info lib |> Lib_info.modes) Lib_mode.Melange
+            in
+            let implements =
+              Option.is_some (Lib_info.implements (info lib))
+            in
+            let local = Local.of_lib lib |> Option.is_none in
+            (* Not filtering vlib implementations, vlibs, and melange mode *)
+            let virtual_ = Option.is_some (Lib_info.virtual_ (info lib)) in
+            if implements || virtual_ || local || melange_mode then Some lib
+            else if List.is_non_empty entry_module_names then Some lib
+            else Some lib
+            (* else if List.is_non_empty entry_module_names then
+                 let ex =
+                   List.exists entry_module_names ~f:(fun entry_module_name ->
+                       (* FIXME: ocamldep doesn't see Melange_wrapper for files that
+                           have been `copy_files` *)
+                       if
+                         String.equal "Melange_wrapper"
+                           (Module_name.to_string entry_module_name)
+                       then Resolve.Memo.return lib
+                       else if
+                         not
+                           (flag_open_present
+                              (Module_name.to_string entry_module_name)
+                              flags)
+                       then
+                         let keep =
+                           exists_in_odeps (Module_name.to_string entry_module_name)
+                         in
+
+                         (* if not keep then
+                              Dune_util.Log.info
+                                [ Pp.textf
+                                    "Removing %s aka %s   \n\n\
+                                     ~Odep_list: %s\n\n\n\
+                                    \                          ~Flags : %s\n\n\n\
+                                    \                                                          \
+                                     \n\n\
+                                    \                              \\n\n\
+                                    \                         \n\
+                                    \                         •\n\
+                                     ------------------"
+                                    (name lib |> Lib_name.to_string)
+                                    (Module_name.to_string entry_module_name)
+                                    (String.concat dep_names ~sep:" , ")
+                                    (String.concat flags ~sep:",")
+                                ];
+                            keep; *)
+                         Resolve.Memo.return lib
+                       else Resolve.Memo.return lib)
+                 in
+                 ex
+               else Resolve.Memo.return lib *))
+      in
+
+      list_r) *)
+
 let closure l ~linking =
   let forbidden_libraries = Map.empty in
   if linking then
@@ -1679,7 +1858,16 @@ module Compile = struct
 
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
-    ; direct_requires_per_module : t list Module_name.Map.t Resolve.Memo.t
+    ; direct_requires_per_module :
+           string list
+        -> (Local.t -> Module.t list Memo.t)
+        -> Module_dep.t list
+        -> t list Resolve.Memo.t
+    ; requires_link_per_module :
+           string list
+        -> (Local.t -> Module.t list Memo.t)
+        -> Module_dep.t list
+        -> t list Resolve.t Memo.Lazy.t
     ; requires_link : t list Resolve.t Memo.Lazy.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
@@ -1708,18 +1896,39 @@ module Compile = struct
                 ~forbidden_libraries:Map.empty)
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
+    let direct_requires_per_module flags emns (mdep : Module_dep.t list) =
+      (* Dune_util.Log.info
+         [ Pp.textf "direct_requires_per_module %d" (List.length mdep) ]; *)
+      Resolve.Memo.bind requires ~f:(fun libs ->
+          let libs = _filter_with_odeps libs mdep flags emns in
+          libs)
+    in
+    let requires_link_per_module flags emns (mdep : Module_dep.t list) =
+      (* Dune_util.Log.info
+         [ Pp.textf "requires_link_per_module %d" (List.length mdep) ]; *)
+      let requires' = direct_requires_per_module flags emns mdep in
+      let db = Option.some_if (not allow_overlaps) db in
+      Memo.lazy_ (fun () ->
+          requires'
+          >>= Resolve_names.compile_closure_with_overlap_checks db
+                ~forbidden_libraries:Map.empty)
+    in
+
     { direct_requires = requires
     ; requires_link
     ; resolved_selects = Memo.return t.resolved_selects
     ; pps = Memo.return t.pps
     ; sub_systems = t.sub_systems
     ; merlin_ident
-    ; direct_requires_per_module = Resolve.Memo.return Module_name.Map.empty
+    ; direct_requires_per_module
+    ; requires_link_per_module
     }
 
   let direct_requires t = t.direct_requires
 
   let direct_requires_per_module t = t.direct_requires_per_module
+
+  let requires_link_per_module t = t.requires_link_per_module
 
   let requires_link t = t.requires_link
 
@@ -1929,13 +2138,61 @@ module DB = struct
       let+ resolved = Memo.Lazy.force resolved in
       resolved.selects
     in
+    let direct_requires_per_module flags _ (mdep : Module_dep.t list) =
+      (* Dune_util.Log.info
+         [ Pp.textf "direct_requires_per_module %d" (List.length mdep) ]; *)
+      Resolve.Memo.map direct_requires ~f:(fun libs ->
+          ignore mdep;
+          ignore flags;
+          libs)
+    in
+    let requires_link_per_module flags emns (mdep : Module_dep.t list) =
+      ignore emns;
+      ignore mdep;
+      ignore flags;
+      Memo.Lazy.create (fun () ->
+          let* forbidden_libraries =
+            let* l =
+              Resolve.Memo.List.map forbidden_libraries ~f:(fun (loc, name) ->
+                  let+ lib = resolve t (loc, name) in
+                  (lib, loc))
+            in
+            match Map.of_list l with
+            | Ok res -> Resolve.Memo.return res
+            | Error (lib, _, loc) ->
+              Error.make ~loc
+                [ Pp.textf "Library %S appears for the second time"
+                    (Lib_name.to_string lib.name)
+                ]
+          and+ res =
+            let open Memo.O in
+            let+ resolved = Memo.Lazy.force resolved in
+            resolved.requires
+          in
+          Resolve.Memo.push_stack_frame
+            (fun () ->
+              Resolve_names.linking_closure_with_overlap_checks
+                (Option.some_if (not allow_overlaps) t)
+                ~forbidden_libraries res)
+            ~human_readable_description:(fun () ->
+              match targets with
+              | `Melange_emit name -> Pp.textf "melange target %s" name
+              | `Exe [ (loc, name) ] ->
+                Pp.textf "executable %s in %s" name (Loc.to_file_colon_line loc)
+              | `Exe names ->
+                let loc, _ = List.hd names in
+                Pp.textf "executables %s in %s"
+                  (String.enumerate_and (List.map ~f:snd names))
+                  (Loc.to_file_colon_line loc)))
+    in
     { Compile.direct_requires
     ; requires_link
     ; pps
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
-    ; direct_requires_per_module = Resolve.Memo.return Module_name.Map.empty
+    ; direct_requires_per_module
+    ; requires_link_per_module
     }
 
   (* Here we omit the [only_ppx_deps_allowed] check because by the time we reach
@@ -2018,49 +2275,3 @@ let to_dune_lib ({ info; _ } as lib) ~modules ~foreign_objects
       ~modules ~melange_runtime_deps ~public_headers
   in
   Dune_package.Lib.of_dune_lib ~info ~main_module_name
-
-module Local : sig
-  type t = private lib
-
-  val of_lib : lib -> t option
-
-  val of_lib_exn : lib -> t
-
-  val to_lib : t -> lib
-
-  val obj_dir : t -> Path.Build.t Obj_dir.t
-
-  val info : t -> Path.Build.t Lib_info.t
-
-  val to_dyn : t -> Dyn.t
-
-  val equal : t -> t -> bool
-
-  val hash : t -> int
-
-  include Comparable_intf.S with type key := t
-end = struct
-  type nonrec t = t
-
-  let to_lib t = t
-
-  let of_lib (t : lib) = Option.some_if (is_local t) t
-
-  let of_lib_exn t =
-    match of_lib t with
-    | Some l -> l
-    | None -> Code_error.raise "Lib.Local.of_lib_exn" [ ("l", to_dyn t) ]
-
-  let obj_dir t = Obj_dir.as_local_exn (Lib_info.obj_dir t.info)
-
-  let info t = Lib_info.as_local_exn t.info
-
-  module Set = Set
-  module Map = Map
-
-  let to_dyn = to_dyn
-
-  let equal = equal
-
-  let hash = hash
-end

@@ -57,6 +57,31 @@ type sub_system = ..
 
 type db
 
+(** Local libraries *)
+module Local : sig
+  type lib := t
+
+  type t = private lib
+
+  val to_dyn : t -> Dyn.t
+
+  val equal : t -> t -> bool
+
+  val hash : t -> int
+
+  val of_lib : lib -> t option
+
+  val of_lib_exn : lib -> t
+
+  val to_lib : t -> lib
+
+  val info : t -> Lib_info.local
+
+  val obj_dir : t -> Path.Build.t Obj_dir.t
+
+  include Comparable_intf.S with type key := t
+end
+
 (** For compiling a library or executable *)
 module Compile : sig
   type lib := t
@@ -71,7 +96,19 @@ module Compile : sig
   (** Dependencies listed by the user + runtime dependencies from ppx *)
   val direct_requires : t -> lib list Resolve.Memo.t
 
-  val direct_requires_per_module : t -> lib list Module_name.Map.t Resolve.Memo.t
+  val direct_requires_per_module :
+       t
+    -> string list
+    -> (Local.t -> Module.t list Memo.t)
+    -> Module_dep.t list
+    -> lib list Resolve.Memo.t
+
+  val requires_link_per_module :
+       t
+    -> string list
+    -> (Local.t -> Module.t list Memo.t)
+    -> Module_dep.t list
+    -> lib list Resolve.t Memo.Lazy.t
 
   module Resolved_select : sig
     type t =
@@ -232,28 +269,3 @@ val to_dune_lib :
   -> public_headers:Path.t list
   -> dir:Path.t
   -> Dune_package.Lib.t Resolve.Memo.t
-
-(** Local libraries *)
-module Local : sig
-  type lib := t
-
-  type t = private lib
-
-  val to_dyn : t -> Dyn.t
-
-  val equal : t -> t -> bool
-
-  val hash : t -> int
-
-  val of_lib : lib -> t option
-
-  val of_lib_exn : lib -> t
-
-  val to_lib : t -> lib
-
-  val info : t -> Lib_info.local
-
-  val obj_dir : t -> Path.Build.t Obj_dir.t
-
-  include Comparable_intf.S with type key := t
-end

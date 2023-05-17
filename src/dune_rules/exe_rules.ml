@@ -130,10 +130,19 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         Memo.Lazy.force requires_link
       else requires_compile
     in
+    let entry_names_closure = Odoc.entry_modules_by_lib sctx in
+    let flags = Action_builder.run flags Eager in 
+    let direct_requires_per_module =
+      Lib.Compile.direct_requires_per_module compile_info entry_names_closure
+    in
+    let requires_link_per_module =
+      Lib.Compile.requires_link_per_module compile_info entry_names_closure
+    in
     Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
       ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
       ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map
+      ~direct_requires_per_module ~requires_link_per_module
   in
   let stdlib_dir = ctx.lib_config.stdlib_dir in
   let* requires_compile = Compilation_context.requires_compile cctx in
@@ -216,15 +225,15 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
       ~f:(Check_rules.add_cycle_check sctx ~dir)
   in
   (* Dune_util.Log.info
-    [ Pp.textf "Exe :Modules calls for deps : %d\n"
-        (Module_name.Map.foldi !Module_compilation.count_module ~init:0
-           ~f:(fun _a b c -> c + b))
-      (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
-         ~f:(fun a b c ->
-           c
-           ^ Printf.sprintf "Module %s has %d calls \n"
-               (Module_name.to_string a) b)) *)
-    ]; *)
+     [ Pp.textf "Exe :Modules calls for deps : %d\n"
+         (Module_name.Map.foldi !Module_compilation.count_module ~init:0
+            ~f:(fun _a b c -> c + b))
+       (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
+          ~f:(fun a b c ->
+            c
+            ^ Printf.sprintf "Module %s has %d calls \n"
+                (Module_name.to_string a) b)) *)
+     ]; *)
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
       ~source_dirs:Path.Source.Set.empty ~libname:None ~preprocess ~obj_dir

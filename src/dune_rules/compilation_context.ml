@@ -152,8 +152,8 @@ module Includes = struct
       Memo.create "count module"
         ~input:(module Module_name)
         (fun md ->
-          Dune_util.Log.info
-            [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ];
+          (* Dune_util.Log.info
+             [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ]; *)
           if
             Module_name.Map.find_key !count_module ~f:(fun mn' ->
                 Module_name.equal md mn')
@@ -171,8 +171,8 @@ module Includes = struct
   let incr_mn = Memo.exec incr_mn
 
   let incr_mn_no_memo md =
-    Dune_util.Log.info
-      [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ];
+    (* Dune_util.Log.info
+       [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ]; *)
     if
       Module_name.Map.find_key !count_module ~f:(fun mn' ->
           Module_name.equal md mn')
@@ -202,9 +202,27 @@ module Includes = struct
     in
     Module_name.Map.of_list_exn mdp
 
+  let o_deps md dep_graphs ml_kind =
+    (*TODO Memoize this *)
+    (* Dune_util.Log.info
+       [ Pp.textf "gona get deps of %s" (Module.name md |> Module_name.to_string)
+       ]; *)
+    (*  let* _ = memo_md in *)
+    let dep_graph_impl = Ml_kind.Dict.get dep_graphs ml_kind in
+    let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+    Memo.bind
+      (incr_mn (Module.name md))
+      ~f:(fun () ->
+        Action_builder.run module_deps_impl Action_builder.Eager
+        |> Resolve.Memo.lift_memo)
+
   let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
-      ~requires ~md ~dep_graphs ~modules ~ml_kind ~flags =
+      ?(lib_to_entry_modules_map = Resolve.Memo.return [])
+      ?(direct_requires_per_module = fun _ -> Resolve.Memo.return [])
+      ?(requires_link_per_module =
+        fun _ -> Memo.lazy_ (fun () -> Resolve.Memo.return []))
+      ?(implicit_transitive_deps = false) () ~project ~opaque ~requires ~md
+      ~dep_graphs ~modules ~ml_kind ~flags =
     let _memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
 
     let flags =
@@ -216,7 +234,10 @@ module Includes = struct
         (Ocaml_flags.get flags Lib_mode.Melange)
         ~f:List.append
     in
+    ignore implicit_transitive_deps;
     ignore modules;
+    ignore direct_requires_per_module;
+    ignore requires_link_per_module;
     ignore incr_mn;
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
@@ -225,12 +246,11 @@ module Includes = struct
     ignore lib_top_module_map;
     ignore incr_mn_no_memo;
     let _deps md =
-      (*       incr_mn_no_memo (Module.name md);
- *)
-      Dune_util.Log.info
-        [ Pp.textf "gona get deps of %s"
-            (Module.name md |> Module_name.to_string)
-        ];
+      (* incr_mn_no_memo (Module.name md); *)
+      (* Dune_util.Log.info
+         [ Pp.textf "gona get deps of %s"
+             (Module.name md |> Module_name.to_string)
+         ]; *)
       (*  let* _ = memo_md in *)
       let dep_graph_impl = Ml_kind.Dict.get dep_graphs ml_kind in
       let dep_graph_intf = Ml_kind.Dict.get dep_graphs ml_kind in
@@ -240,7 +260,6 @@ module Includes = struct
         Action_builder.map2 module_deps_impl module_deps_intf
           ~f:(fun inft impl -> List.append inft impl)
       in
-
       let cmb_flags =
         Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
       in
@@ -251,11 +270,29 @@ module Includes = struct
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
-           (let+ libs = requires in
+           (let* lib_alt = requires in
+            let* mdeps, _ = o_deps md dep_graphs ml_kind in
+            let+ libs =
+              if implicit_transitive_deps then
+                Memo.Lazy.force (requires_link_per_module mdeps)
+              else direct_requires_per_module mdeps
+            in
+            let libs =
+              if List.is_empty libs then (
+                Dune_util.Log.info
+                  [ Pp.textf "libs empty transitive %b" implicit_transitive_deps
+                  ];
+                lib_alt)
+              else (
+                Dune_util.Log.info
+                  [ Pp.textf "libs Not empty transitive %b"
+                      implicit_transitive_deps
+                  ];
+                libs)
+            in
             (* let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in *)
-            (*             let* _ = memo_md in
- *)
-            (*  let+ _ = resolve_module_odeps dep_graphs modules in *)
+            (* let* _ = memo_md in *)
+            (* let+ _ = resolve_module_odeps dep_graphs modules in *)
             (* let+ libs =
                  _filter_with_odeps libs _deps md lib_top_module_map
                    lib_to_entry_modules_map
@@ -269,7 +306,26 @@ module Includes = struct
     let cmx_includes =
       Command.Args.memo
         (Resolve.Memo.args
-           (let+ libs = requires in
+           (let* lib_alt = requires in
+            let* mdeps, _ = o_deps md dep_graphs ml_kind in
+            let+ libs =
+              if implicit_transitive_deps then
+                Memo.Lazy.force (requires_link_per_module mdeps)
+              else direct_requires_per_module mdeps
+            in
+            let libs =
+              if List.is_empty libs then (
+                Dune_util.Log.info
+                  [ Pp.textf "libs empty transitive %b" implicit_transitive_deps
+                  ];
+                lib_alt)
+              else (
+                Dune_util.Log.info
+                  [ Pp.textf "libs Not empty transitive %b"
+                      implicit_transitive_deps
+                  ];
+                libs)
+            in
             (*             let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in
  *)
             (* let* _ = memo_md in *)
@@ -407,12 +463,17 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
-    ?(lib_to_entry_modules_map = Resolve.Memo.return []) () =
+    ?(lib_to_entry_modules_map = Resolve.Memo.return [])
+    ?(direct_requires_per_module = fun _ -> Resolve.Memo.return [])
+    ?(requires_link_per_module =
+      fun _ -> Memo.lazy_ (fun () -> Resolve.Memo.return [])) () =
   let open Memo.O in
   let project = Scope.project scope in
+  let implicit_transitive_deps =
+    Dune_project.implicit_transitive_deps project
+  in
   let requires_compile =
-    if Dune_project.implicit_transitive_deps project then
-      Memo.Lazy.force requires_link
+    if implicit_transitive_deps then Memo.Lazy.force requires_link
     else requires_compile
   in
   let sandbox =
@@ -451,7 +512,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   in
   let includes =
     Includes.make ~project ~opaque ~requires:requires_compile
-      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ()
+      ~lib_top_module_map ~lib_to_entry_modules_map ~direct_requires_per_module
+      ~requires_link_per_module ~implicit_transitive_deps ~flags ()
   in
   { super_context
   ; scope

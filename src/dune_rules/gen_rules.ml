@@ -834,7 +834,7 @@ let gen_rules ctx_or_install ~dir components =
     | Context ctx ->
       with_context ctx ~f:(fun sctx -> gen_rules ~sctx ~dir components)
   in
-  Dune_util.Log.info
+ (*  Dune_util.Log.info
     [ Pp.textf "Exe :Modules calls for deps : %d\n"
         (Module_name.Map.foldi !Compilation_context.count_module ~init:0
            ~f:(fun _a b c -> c + b))
@@ -843,5 +843,5 @@ let gen_rules ctx_or_install ~dir components =
            c
            ^ Printf.sprintf "Module %s has %d calls \n"
                (Module_name.to_string a) b)) *)
-    ];
+    ]; *)
   r
