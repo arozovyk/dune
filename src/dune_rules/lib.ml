@@ -1679,6 +1679,7 @@ module Compile = struct
 
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
+    ; direct_requires_per_module : t list Module_name.Map.t Resolve.Memo.t
     ; requires_link : t list Resolve.t Memo.Lazy.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
@@ -1713,9 +1714,12 @@ module Compile = struct
     ; pps = Memo.return t.pps
     ; sub_systems = t.sub_systems
     ; merlin_ident
+    ; direct_requires_per_module = Resolve.Memo.return Module_name.Map.empty
     }
 
   let direct_requires t = t.direct_requires
+
+  let direct_requires_per_module t = t.direct_requires_per_module
 
   let requires_link t = t.requires_link
 
@@ -1931,6 +1935,7 @@ module DB = struct
     ; resolved_selects = resolved_selects |> Memo.map ~f:Resolve.return
     ; sub_systems = Sub_system_name.Map.empty
     ; merlin_ident
+    ; direct_requires_per_module = Resolve.Memo.return Module_name.Map.empty
     }
 
   (* Here we omit the [only_ppx_deps_allowed] check because by the time we reach

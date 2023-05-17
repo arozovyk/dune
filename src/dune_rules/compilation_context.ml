@@ -170,20 +170,26 @@ module Includes = struct
 
   let incr_mn = Memo.exec incr_mn
 
-  let _resolve_module_odeps dep_graphs modules =
+  let incr_mn_no_memo md =
+    Dune_util.Log.info
+      [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ];
+    if
+      Module_name.Map.find_key !count_module ~f:(fun mn' ->
+          Module_name.equal md mn')
+      |> Option.is_some
+    then
+      let old_v = Module_name.Map.find_exn !count_module md in
+
+      count_module := Module_name.Map.set !count_module md (old_v + 1)
+    else count_module := Module_name.Map.set !count_module md 1
+
+  let _resolve_module_odeps dep_graphs modules ml_kind =
     let open Resolve.Memo.O in
     let deps md =
-      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      incr_mn_no_memo (Module.name md);
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs ml_kind in
       let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
-      let cmb_itf_impl =
-        Action_builder.map2 module_deps_impl module_deps_intf
-          ~f:(fun inft impl -> List.append inft impl)
-      in
-      Action_builder.run
-        (Action_builder.memoize "resolve_module_odeps" cmb_itf_impl)
-        Action_builder.Eager
+      Action_builder.run module_deps_impl Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
     let mp =
@@ -197,9 +203,10 @@ module Includes = struct
     Module_name.Map.of_list_exn mdp
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~modules ~project
-      ~opaque ~requires ~md ~dep_graphs ~flags =
-    let memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
+      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
+      ~requires ~md ~dep_graphs ~modules ~ml_kind ~flags =
+    let _memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
+
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -210,18 +217,23 @@ module Includes = struct
         ~f:List.append
     in
     ignore modules;
+    ignore incr_mn;
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
     ignore lib_to_entry_modules_map;
     ignore lib_top_module_map;
+    ignore incr_mn_no_memo;
     let _deps md =
+      (*       incr_mn_no_memo (Module.name md);
+ *)
       Dune_util.Log.info
         [ Pp.textf "gona get deps of %s"
             (Module.name md |> Module_name.to_string)
         ];
-      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      (*  let* _ = memo_md in *)
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs ml_kind in
+      let dep_graph_intf = Ml_kind.Dict.get dep_graphs ml_kind in
       let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
       let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
       let cmb_itf_impl =
@@ -239,13 +251,15 @@ module Includes = struct
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
-           (let* libs = requires in
-            let* _ = memo_md in
+           (let+ libs = requires in
+            (* let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in *)
+            (*             let* _ = memo_md in
+ *)
             (*  let+ _ = resolve_module_odeps dep_graphs modules in *)
-            let+ libs =
-              _filter_with_odeps libs _deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            (* let+ libs =
+                 _filter_with_odeps libs _deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -255,13 +269,15 @@ module Includes = struct
     let cmx_includes =
       Command.Args.memo
         (Resolve.Memo.args
-           (let* libs = requires in
-            let* _ = memo_md in
+           (let+ libs = requires in
+            (*             let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in
+ *)
+            (* let* _ = memo_md in *)
             (*   let+ _ = resolve_module_odeps dep_graphs modules in *)
-            let+ libs =
-              _filter_with_odeps libs _deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+            (* let+ libs =
+                 _filter_with_odeps libs _deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -317,7 +333,12 @@ type t =
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
   ; requires_link : Lib.t list Resolve.t Memo.Lazy.t
-  ; includes : md:Module.t -> Includes.t
+  ; includes :
+         md:Module.t
+      -> dep_graphs:Dep_graph.t Ml_kind.Dict.t
+      -> modules:Modules.t
+      -> ml_kind:Ml_kind.t
+      -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
   ; stdlib : Ocaml_stdlib.t option
@@ -429,8 +450,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
   let includes =
-    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
-      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ~modules ()
+    Includes.make ~project ~opaque ~requires:requires_compile
+      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ()
   in
   { super_context
   ; scope
@@ -476,9 +497,17 @@ let for_alias_module t alias_module =
       Sandbox_config.needs_sandboxing
     else Sandbox_config.no_special_requirements
   in
-  let (modules, includes) : modules * (md:Module.t -> Includes.t) =
+  let (modules, includes)
+        : modules
+          * (   md:Module.t
+             -> dep_graphs:Dep_graph.t Ml_kind.Dict.t
+             -> modules:Modules.t
+             -> ml_kind:Ml_kind.t
+             -> Includes.t) =
     match Modules.is_stdlib_alias t.modules.modules alias_module with
-    | false -> (singleton_modules alias_module, fun ~md:_ -> Includes.empty)
+    | false ->
+      ( singleton_modules alias_module
+      , fun ~md:_ ~dep_graphs:_ ~modules:_ ~ml_kind:_ -> Includes.empty )
     | true ->
       (* The stdlib alias module is different from the alias modules usually
          produced by Dune: it contains code and depends on a few other
@@ -529,10 +558,10 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
     Dep_graph.make ~dir:(Path.Build.of_string "")
       ~per_module:Module_name.Unique.Map.empty
   in
-  let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
+  let _dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let includes =
-    Includes.make ~dep_graphs ~project:(Scope.project cctx.scope)
-      ~modules:cctx.modules.modules ~opaque ~requires ~flags ()
+    Includes.make ~project:(Scope.project cctx.scope) ~opaque ~requires ~flags
+      ()
   in
   { cctx with
     opaque
@@ -544,7 +573,10 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   }
 
 let for_wrapped_compat t =
-  { t with includes = (fun ~md:_ -> Includes.empty); stdlib = None }
+  { t with
+    includes = (fun ~md:_ ~dep_graphs:_ ~modules:_ ~ml_kind:_ -> Includes.empty)
+  ; stdlib = None
+  }
 
 let for_plugin_executable t ~embed_in_plugin_libraries =
   let libs = Scope.libs t.scope in

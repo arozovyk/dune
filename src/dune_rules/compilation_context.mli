@@ -73,6 +73,9 @@ val requires_compile : t -> Lib.t list Resolve.Memo.t
 val includes :
      t
   -> md:Module.t
+  -> dep_graphs:Dep_graph.t Ml_kind.Dict.t
+  -> modules:Modules.t
+  -> ml_kind:Ml_kind.t
   -> Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
 val preprocessing : t -> Pp_spec.t

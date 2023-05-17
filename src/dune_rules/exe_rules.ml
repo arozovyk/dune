@@ -215,7 +215,16 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     Memo.parallel_iter dep_graphs.for_exes
       ~f:(Check_rules.add_cycle_check sctx ~dir)
   in
-
+  (* Dune_util.Log.info
+    [ Pp.textf "Exe :Modules calls for deps : %d\n"
+        (Module_name.Map.foldi !Module_compilation.count_module ~init:0
+           ~f:(fun _a b c -> c + b))
+      (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
+         ~f:(fun a b c ->
+           c
+           ^ Printf.sprintf "Module %s has %d calls \n"
+               (Module_name.to_string a) b)) *)
+    ]; *)
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
       ~source_dirs:Path.Source.Set.empty ~libname:None ~preprocess ~obj_dir

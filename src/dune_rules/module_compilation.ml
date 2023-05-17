@@ -257,7 +257,12 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
           ; cmt_args
           ; Command.Args.S obj_dirs
           ; Command.Args.as_any
-              (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind)
+              (Lib_mode.Cm_kind.Map.get
+                 (CC.includes ~md:m
+                    ~dep_graphs:(Compilation_context.dep_graphs cctx)
+                    ~modules:(Compilation_context.modules cctx)
+                    ~ml_kind cctx)
+                 cm_kind)
           ; As extra_args
           ; S (melange_args cctx cm_kind m)
           ; A "-no-alias-deps"
@@ -343,6 +348,7 @@ let ocamlc_i ~deps cctx (m : Module.t) ~output =
   in
   let ocaml_flags = Ocaml_flags.get (CC.flags cctx) (Ocaml Byte) in
   let modules = Compilation_context.modules cctx in
+
   Super_context.add_rule sctx ~dir
     (Action_builder.With_targets.add ~file_targets:[ output ]
        (let open Action_builder.With_targets.O in
@@ -353,7 +359,12 @@ let ocamlc_i ~deps cctx (m : Module.t) ~output =
              ; A "-I"
              ; Path (Path.build (Obj_dir.byte_dir obj_dir))
              ; Command.Args.as_any
-                 (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) (Ocaml Cmo))
+                 (Lib_mode.Cm_kind.Map.get
+                    (CC.includes ~md:m
+                       ~dep_graphs:(Compilation_context.dep_graphs cctx)
+                       ~modules:(Compilation_context.modules cctx)
+                       ~ml_kind:Ml_kind.Impl cctx)
+                    (Ocaml Cmo))
              ; opens modules m
              ; A "-short-paths"
              ; A "-i"
@@ -470,9 +481,55 @@ let build_root_module cctx root_module =
   in
   build_module cctx root_module
 
+let count_module = ref Module_name.Map.empty
+
+let incr_mn_no_memo md =
+  Dune_util.Log.info
+    [ Pp.textf "gona get deps of %s" (md |> Module_name.to_string) ];
+  if
+    Module_name.Map.find_key !count_module ~f:(fun mn' ->
+        Module_name.equal md mn')
+    |> Option.is_some
+  then
+    let old_v = Module_name.Map.find_exn !count_module md in
+
+    count_module := Module_name.Map.set !count_module md (old_v + 1)
+  else count_module := Module_name.Map.set !count_module md 1
+
+let _resolve_module_odeps dep_graphs modules =
+  let open Memo.O in
+  let deps md =
+    ignore dep_graphs;
+    incr_mn_no_memo (Module.name md);
+    let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+    let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+    let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+    let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
+    let cmb_itf_impl =
+      Action_builder.map2 module_deps_impl module_deps_intf ~f:(fun inft impl ->
+          List.append inft impl)
+    in
+    Action_builder.run cmb_itf_impl Action_builder.Lazy
+  in
+
+  let mp =
+    Modules.fold_user_available modules ~init:[] ~f:(fun m acc -> m :: acc)
+  in
+  let+ mdp =
+    List.filter_map mp ~f:(fun m ->
+        match Module.kind m with
+        | Virtual | Impl_vmodule -> None
+        | _ ->
+          Some (Memo.map (deps m) ~f:(fun (deps, _) -> (Module.name m, deps))))
+    |> Memo.all
+  in
+  Module_name.Map.of_list_exn mdp
+
 let build_all cctx =
   let for_wrapped_compat = lazy (Compilation_context.for_wrapped_compat cctx) in
   let modules = Compilation_context.modules cctx in
+(*   let dep_graphs = Compilation_context.dep_graphs cctx in
+ *)
   Memo.parallel_iter
     (Modules.fold_no_vlib_with_aliases modules ~init:[]
        ~normal:(fun x acc -> `Normal x :: acc)

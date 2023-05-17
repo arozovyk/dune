@@ -10,6 +10,8 @@ val build_module :
   -> Module.t
   -> unit Memo.t
 
+val count_module : int Module_name.Map.t ref
+
 val ocamlc_i :
      deps:Module_dep.t list Action_builder.t Ml_kind.Dict.t
   -> Compilation_context.t

@@ -71,6 +71,8 @@ module Compile : sig
   (** Dependencies listed by the user + runtime dependencies from ppx *)
   val direct_requires : t -> lib list Resolve.Memo.t
 
+  val direct_requires_per_module : t -> lib list Module_name.Map.t Resolve.Memo.t
+
   module Resolved_select : sig
     type t =
       { src_fn : Filename.t Resolve.t

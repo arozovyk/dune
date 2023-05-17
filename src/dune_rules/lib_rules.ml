@@ -521,7 +521,7 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
     let+ () = Check_rules.add_obj_dir sctx ~obj_dir mode in
     info
   in
- 
+
   let+ () =
     Memo.when_
       (not (Library.is_virtual lib))
@@ -550,6 +550,17 @@ let library_rules (lib : Library.t) ~local_lib ~cctx ~source_modules
       ~instrumentation_backend:
         (Lib.DB.instrumentation_backend (Scope.libs scope))
   in
+
+  (* Dune_util.Log.info
+    [ Pp.textf "Exe :Modules calls for deps : %d\n"
+        (Module_name.Map.foldi !Module_compilation.count_module ~init:0
+           ~f:(fun _a b c -> c + b))
+      (* (Module_name.Map.foldi !Compilation_context.count_module ~init:""
+         ~f:(fun a b c ->
+           c
+           ^ Printf.sprintf "Module %s has %d calls \n"
+               (Module_name.to_string a) b)) *)
+    ]; *)
   ( cctx
   , Merlin.make ~requires:requires_compile ~stdlib_dir ~flags ~modules
       ~source_dirs:Path.Source.Set.empty ~preprocess
