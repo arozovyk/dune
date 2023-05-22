@@ -85,11 +85,10 @@ module Includes = struct
                 [ Pp.textf
                     "Removing_upd %s \n\
                      having entries: (%s)\n\
-                    \ having re_exports () \n\
                      for module %s\n\
                      Odep {%s}\n\
-                     Flags [%s]\n\n\
-                    \                     entry names [%s]\n"
+                     Flags [%s]\n\
+                     having re_exports [%s]\n"
                     (Lib.name lib |> Lib_name.to_string)
                     (String.concat emnstr ~sep:",")
                     (Module.name md |> Module_name.to_string)
