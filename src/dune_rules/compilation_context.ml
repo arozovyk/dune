@@ -35,21 +35,24 @@ module Includes = struct
          String.is_suffix (Module.name md |> Module_name.to_string) ~suffix:"__mock"
        then libs
        else *)
-    let* entry_names_map =
+    let* (entry_names_map : (Lib.t * Module.t list * Lib.t list) list) =
       List.map libs ~f:(fun lib ->
           let local_lib = Lib.Local.of_lib lib in
-          if Option.is_none local_lib then Resolve.Memo.return (lib, [])
+          if Option.is_none local_lib then Resolve.Memo.return (lib, [], [])
           else
             let em =
               emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
             in
-            Resolve.Memo.map em ~f:(fun emns_l -> (lib, emns_l)))
+            Resolve.Memo.bind em ~f:(fun emns_l ->
+                Resolve.Memo.map
+                  (Lib.re_exports lib |> Resolve.Memo.lift)
+                  ~f:(fun _r -> (lib, emns_l, _r))))
       |> Resolve.Memo.all
     in
     if List.is_empty dep_names then Resolve.Memo.return libs
     else
       let r =
-        List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
+        List.filter_map entry_names_map ~f:(fun (lib, entry_names, r) ->
             let entries_empty = List.is_empty entry_names in
             let emnstr =
               List.map entry_names ~f:(fun m ->
@@ -71,17 +74,30 @@ module Includes = struct
                   let is_unwrapped = flag_open_present emn flags in
                   is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
             then Some lib
+            else if
+              List.exists emnstr ~f:(fun emn ->
+                  let is_melange_wrapper = String.equal "Melange_wrapper" emn in
+                  let is_unwrapped = flag_open_present emn flags in
+                  is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
+            then Some lib
             else (
               Dune_util.Log.info
                 [ Pp.textf
-                    "Removing_upd %s having entries: (%s) for module %s\n\
+                    "Removing_upd %s \n\
+                     having entries: (%s)\n\
+                    \ having re_exports () \n\
+                     for module %s\n\
                      Odep {%s}\n\
-                     Flags [%s]\n"
+                     Flags [%s]\n\n\
+                    \                     entry names [%s]\n"
                     (Lib.name lib |> Lib_name.to_string)
                     (String.concat emnstr ~sep:",")
                     (Module.name md |> Module_name.to_string)
                     (String.concat dep_names ~sep:",")
                     (String.concat flags ~sep:",")
+                    (List.map r ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
                 ];
               None))
       in
@@ -305,8 +321,9 @@ module Includes = struct
     in
     let requires =
       if Dune_project.implicit_transitive_deps project then requires
-      else (
-        Dune_util.Log.info [ Pp.textf "We have direct requires" ];
+      else
+        (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
+ *)
         Resolve.Memo.bind direct_requires ~f:(fun requires ->
             let _o_deps =
               let dep_graph_impl = Ml_kind.Dict.get dep_graphs Impl in
@@ -319,7 +336,7 @@ module Includes = struct
                 Action_builder.Eager
               |> Resolve.Memo.lift_memo
             in
-            filter_updated requires flags entry_names_closure md))
+            filter_updated requires flags entry_names_closure md)
     in
     ignore deps;
     ignore lib_to_entry_modules_map;

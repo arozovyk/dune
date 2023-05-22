@@ -444,6 +444,8 @@ let main_module_name t =
     | This x -> x
     | From _ -> assert false)
 
+let re_exports t = t.re_exports
+
 let wrapped t =
   let wrapped = Lib_info.wrapped t.info in
   match wrapped with
@@ -2059,3 +2061,5 @@ end = struct
 
   let hash = hash
 end
+
+ 
