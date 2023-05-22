@@ -268,7 +268,6 @@ module Includes = struct
       Action_builder.run cmb_flags Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
-
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
@@ -278,6 +277,17 @@ module Includes = struct
                 Memo.Lazy.force (requires_link_per_module md dep_graphs)
               else direct_requires_per_module md dep_graphs
             in
+            if Module.name md |> Module_name.to_string |> String.equal "Csexp"
+            then
+              Dune_util.Log.info
+                [ Pp.textf "CC module csexp libs (%s)\n filtered : {%s}"
+                    (List.map lib_alt ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                    (List.map libs ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                ];
             let libs =
               if List.is_empty libs then (
                 Dune_util.Log.info
@@ -289,7 +299,7 @@ module Includes = struct
                   [ Pp.textf "libs Not empty transitive %b"
                       implicit_transitive_deps
                   ];
-                libs)
+                lib_alt)
             in
             (* let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in *)
             (* let* _ = memo_md in *)
@@ -313,6 +323,17 @@ module Includes = struct
                 Memo.Lazy.force (requires_link_per_module md dep_graphs)
               else direct_requires_per_module md dep_graphs
             in
+            if Module.name md |> Module_name.to_string |> String.equal "Csexp"
+            then
+              Dune_util.Log.info
+                [ Pp.textf "CC module csexp libs (%s)\n filtered : {%s}"
+                    (List.map lib_alt ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                    (List.map libs ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                ];
             let libs =
               if List.is_empty libs then (
                 Dune_util.Log.info
@@ -324,7 +345,7 @@ module Includes = struct
                   [ Pp.textf "libs Not empty transitive %b"
                       implicit_transitive_deps
                   ];
-                libs)
+                lib_alt)
             in
             (*             let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in *)
             (* let* _ = memo_md in *)

@@ -1676,7 +1676,6 @@ end = struct
 end
 
 let _filter_with_odeps (libs : lib list) module_deps flags emns md =
-  ignore md;
   let open Resolve.Memo.O in
   let* module_deps, _ = module_deps in
   let rec flag_open_present entry_lib_name l =
