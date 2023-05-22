@@ -1675,8 +1675,10 @@ end = struct
   let hash = hash
 end
 
-let _filter_with_odeps (libs : lib list) module_deps flags emns =
+let _filter_with_odeps (libs : lib list) module_deps flags emns md =
+  ignore md;
   let open Resolve.Memo.O in
+  let* module_deps, _ = module_deps in
   let rec flag_open_present entry_lib_name l =
     match l with
     | flag :: entry_name :: t ->
@@ -1717,99 +1719,44 @@ let _filter_with_odeps (libs : lib list) module_deps flags emns =
           Resolve.Memo.map em ~f:(fun emns_l -> (lib, emns_l)))
     |> Resolve.Memo.all
   in
-  let r =
-    List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
-        let entries_empty = List.is_empty entry_names in
-        let emnstr =
-          List.map entry_names ~f:(fun m ->
-              Module.name m |> Module_name.to_string)
-        in
-        let melange_mode =
-          Lib_mode.Map.get (info lib |> Lib_info.modes) Lib_mode.Melange
-        in
-        let implements = Option.is_some (Lib_info.implements (info lib)) in
-        let local = Local.of_lib lib |> Option.is_none in
-        let virtual_ = Option.is_some (Lib_info.virtual_ (info lib)) in
-        if implements || virtual_ || local || melange_mode || entries_empty then
-          Some lib
-        else if
-          List.exists emnstr ~f:(fun emn ->
-              let is_melange_wrapper = String.equal "Melange_wrapper" emn in
-              let is_unwrapped = flag_open_present emn flags in
-              is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
-        then Some lib
-        else (
-          Dune_util.Log.info
-            [ Pp.textf "Removing %s" (name lib |> Lib_name.to_string) ];
-          None))
-  in
-  Resolve.Memo.return r
-(* List.filter_map libs ~f:(fun lib ->
-    let local_lib = Local.of_lib lib in
-    if Option.is_none local_lib then Some (Resolve.Memo.return lib)
-    else
-      let entry_module_names =
-        emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
-      in
-      let list_r =
-        Resolve.Memo.map entry_module_names ~f:(fun entry_module_names ->
-            let melange_mode =
-              Lib_mode.Map.get (info lib |> Lib_info.modes) Lib_mode.Melange
-            in
-            let implements =
-              Option.is_some (Lib_info.implements (info lib))
-            in
-            let local = Local.of_lib lib |> Option.is_none in
-            (* Not filtering vlib implementations, vlibs, and melange mode *)
-            let virtual_ = Option.is_some (Lib_info.virtual_ (info lib)) in
-            if implements || virtual_ || local || melange_mode then Some lib
-            else if List.is_non_empty entry_module_names then Some lib
-            else Some lib
-            (* else if List.is_non_empty entry_module_names then
-                 let ex =
-                   List.exists entry_module_names ~f:(fun entry_module_name ->
-                       (* FIXME: ocamldep doesn't see Melange_wrapper for files that
-                           have been `copy_files` *)
-                       if
-                         String.equal "Melange_wrapper"
-                           (Module_name.to_string entry_module_name)
-                       then Resolve.Memo.return lib
-                       else if
-                         not
-                           (flag_open_present
-                              (Module_name.to_string entry_module_name)
-                              flags)
-                       then
-                         let keep =
-                           exists_in_odeps (Module_name.to_string entry_module_name)
-                         in
-
-                         (* if not keep then
-                              Dune_util.Log.info
-                                [ Pp.textf
-                                    "Removing %s aka %s   \n\n\
-                                     ~Odep_list: %s\n\n\n\
-                                    \                          ~Flags : %s\n\n\n\
-                                    \                                                          \
-                                     \n\n\
-                                    \                              \\n\n\
-                                    \                         \n\
-                                    \                         •\n\
-                                     ------------------"
-                                    (name lib |> Lib_name.to_string)
-                                    (Module_name.to_string entry_module_name)
-                                    (String.concat dep_names ~sep:" , ")
-                                    (String.concat flags ~sep:",")
-                                ];
-                            keep; *)
-                         Resolve.Memo.return lib
-                       else Resolve.Memo.return lib)
-                 in
-                 ex
-               else Resolve.Memo.return lib *))
-      in
-
-      list_r) *)
+  if List.is_empty dep_names then Resolve.Memo.return libs
+  else
+    let r =
+      List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
+          let entries_empty = List.is_empty entry_names in
+          let emnstr =
+            List.map entry_names ~f:(fun m ->
+                Module.name m |> Module_name.to_string)
+          in
+          let melange_mode =
+            Lib_mode.Map.get (info lib |> Lib_info.modes) Lib_mode.Melange
+          in
+          let implements = Option.is_some (Lib_info.implements (info lib)) in
+          let local = Local.of_lib lib |> Option.is_none in
+          let virtual_ = Option.is_some (Lib_info.virtual_ (info lib)) in
+          if implements || virtual_ || local || melange_mode || entries_empty
+          then Some lib
+          else if
+            List.exists emnstr ~f:(fun emn ->
+                let is_melange_wrapper = String.equal "Melange_wrapper" emn in
+                let is_unwrapped = flag_open_present emn flags in
+                is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
+          then Some lib
+          else (
+            Dune_util.Log.info
+              [ Pp.textf
+                  "Removing %s having entries: (%s) for module %s\n\
+                   Odep {%s}\n\
+                   Flags [%s]\n"
+                  (name lib |> Lib_name.to_string)
+                  (String.concat emnstr ~sep:",")
+                  (Module.name md |> Module_name.to_string)
+                  (String.concat dep_names ~sep:",")
+                  (String.concat flags ~sep:",")
+              ];
+            None))
+    in
+    Resolve.Memo.return r
 
 let closure l ~linking =
   let forbidden_libraries = Map.empty in
@@ -1864,12 +1811,14 @@ module Compile = struct
     ; direct_requires_per_module :
            string list
         -> (Local.t -> Module.t list Memo.t)
-        -> Module_dep.t list
+        -> Module.t
+        -> Dep_graph.t Ml_kind.Dict.t
         -> t list Resolve.Memo.t
     ; requires_link_per_module :
            string list
         -> (Local.t -> Module.t list Memo.t)
-        -> Module_dep.t list
+        -> Module.t
+        -> Dep_graph.t Ml_kind.Dict.t
         -> t list Resolve.t Memo.Lazy.t
     ; requires_link : t list Resolve.t Memo.Lazy.t
     ; pps : t list Resolve.Memo.t
@@ -1899,17 +1848,29 @@ module Compile = struct
                 ~forbidden_libraries:Map.empty)
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
-    let direct_requires_per_module flags emns (mdep : Module_dep.t list) =
+    let direct_requires_per_module flags emns md mdep =
       (* Dune_util.Log.info
          [ Pp.textf "direct_requires_per_module %d" (List.length mdep) ]; *)
       Resolve.Memo.bind requires ~f:(fun libs ->
-          let libs = _filter_with_odeps libs mdep flags emns in
+          let _o_deps =
+            let dep_graph_impl = Ml_kind.Dict.get mdep Impl in
+            let dep_graph_inft = Ml_kind.Dict.get mdep Intf in
+            let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+            let module_deps_inft = Dep_graph.deps_of dep_graph_inft md in
+            Action_builder.run
+              (Action_builder.map2 module_deps_impl module_deps_inft
+                 ~f:List.append)
+              Action_builder.Eager
+            |> Resolve.Memo.lift_memo
+          in
+          let libs = _filter_with_odeps libs _o_deps flags emns md in
           libs)
     in
-    let requires_link_per_module flags emns (mdep : Module_dep.t list) =
+    let requires_link_per_module flags emns md mdep =
+      ignore md;
       (* Dune_util.Log.info
          [ Pp.textf "requires_link_per_module %d" (List.length mdep) ]; *)
-      let requires' = direct_requires_per_module flags emns mdep in
+      let requires' = direct_requires_per_module flags emns md mdep in
       let db = Option.some_if (not allow_overlaps) db in
       Memo.lazy_ (fun () ->
           requires'
@@ -2141,7 +2102,8 @@ module DB = struct
       let+ resolved = Memo.Lazy.force resolved in
       resolved.selects
     in
-    let direct_requires_per_module flags _ (mdep : Module_dep.t list) =
+    let direct_requires_per_module flags _ md mdep =
+      ignore md;
       (* Dune_util.Log.info
          [ Pp.textf "direct_requires_per_module %d" (List.length mdep) ]; *)
       Resolve.Memo.map direct_requires ~f:(fun libs ->
@@ -2149,8 +2111,9 @@ module DB = struct
           ignore flags;
           libs)
     in
-    let requires_link_per_module flags emns (mdep : Module_dep.t list) =
+    let requires_link_per_module flags emns md mdep =
       ignore emns;
+      ignore md;
       ignore mdep;
       ignore flags;
       Memo.Lazy.create (fun () ->

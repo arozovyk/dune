@@ -100,14 +100,16 @@ module Compile : sig
        t
     -> string list
     -> (Local.t -> Module.t list Memo.t)
-    -> Module_dep.t list
+    -> Module.t
+    -> Dep_graph.t Ml_kind.Dict.t
     -> lib list Resolve.Memo.t
 
   val requires_link_per_module :
        t
     -> string list
     -> (Local.t -> Module.t list Memo.t)
-    -> Module_dep.t list
+    -> Module.t
+    -> Dep_graph.t Ml_kind.Dict.t
     -> lib list Resolve.t Memo.Lazy.t
 
   module Resolved_select : sig

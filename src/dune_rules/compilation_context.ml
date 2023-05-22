@@ -202,29 +202,31 @@ module Includes = struct
     in
     Module_name.Map.of_list_exn mdp
 
-  let o_deps md dep_graphs ml_kind =
+  let _o_deps md dep_graphs ml_kind =
+    ignore ml_kind;
     (*TODO Memoize this *)
-    (* Dune_util.Log.info
-       [ Pp.textf "gona get deps of %s" (Module.name md |> Module_name.to_string)
-       ]; *)
+    Dune_util.Log.info
+      [ Pp.textf "gona get deps of %s" (Module.name md |> Module_name.to_string)
+      ];
     (*  let* _ = memo_md in *)
-    let dep_graph_impl = Ml_kind.Dict.get dep_graphs ml_kind in
+    let dep_graph_impl = Ml_kind.Dict.get dep_graphs Impl in
+    let dep_graph_inft = Ml_kind.Dict.get dep_graphs Intf in
     let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-    Memo.bind
-      (incr_mn (Module.name md))
-      ~f:(fun () ->
-        Action_builder.run module_deps_impl Action_builder.Eager
-        |> Resolve.Memo.lift_memo)
+    let module_deps_inft = Dep_graph.deps_of dep_graph_inft md in
+    Action_builder.run
+      (Action_builder.map2 module_deps_impl module_deps_inft ~f:List.append)
+      Action_builder.Eager
+    |> Resolve.Memo.lift_memo
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return [])
-      ?(direct_requires_per_module = fun _ -> Resolve.Memo.return [])
+      ?(direct_requires_per_module = fun _ _ -> Resolve.Memo.return [])
       ?(requires_link_per_module =
-        fun _ -> Memo.lazy_ (fun () -> Resolve.Memo.return []))
+        fun _ _ -> Memo.lazy_ (fun () -> Resolve.Memo.return []))
       ?(implicit_transitive_deps = false) () ~project ~opaque ~requires ~md
       ~dep_graphs ~modules ~ml_kind ~flags =
-    let _memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
-
+    (*     let _memo_md = incr_mn (Module.name md) |> Resolve.Memo.lift_memo in
+ *)
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -271,11 +273,10 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* lib_alt = requires in
-            let* mdeps, _ = o_deps md dep_graphs ml_kind in
             let+ libs =
               if implicit_transitive_deps then
-                Memo.Lazy.force (requires_link_per_module mdeps)
-              else direct_requires_per_module mdeps
+                Memo.Lazy.force (requires_link_per_module md dep_graphs)
+              else direct_requires_per_module md dep_graphs
             in
             let libs =
               if List.is_empty libs then (
@@ -307,11 +308,10 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let* lib_alt = requires in
-            let* mdeps, _ = o_deps md dep_graphs ml_kind in
             let+ libs =
               if implicit_transitive_deps then
-                Memo.Lazy.force (requires_link_per_module mdeps)
-              else direct_requires_per_module mdeps
+                Memo.Lazy.force (requires_link_per_module md dep_graphs)
+              else direct_requires_per_module md dep_graphs
             in
             let libs =
               if List.is_empty libs then (
@@ -326,8 +326,7 @@ module Includes = struct
                   ];
                 libs)
             in
-            (*             let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in
- *)
+            (*             let+ _ = _resolve_module_odeps dep_graphs modules ml_kind in *)
             (* let* _ = memo_md in *)
             (*   let+ _ = resolve_module_odeps dep_graphs modules in *)
             (* let+ libs =
@@ -464,9 +463,9 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
     ?(lib_to_entry_modules_map = Resolve.Memo.return [])
-    ?(direct_requires_per_module = fun _ -> Resolve.Memo.return [])
+    ?(direct_requires_per_module = fun _ _ -> Resolve.Memo.return [])
     ?(requires_link_per_module =
-      fun _ -> Memo.lazy_ (fun () -> Resolve.Memo.return [])) () =
+      fun _ _ -> Memo.lazy_ (fun () -> Resolve.Memo.return [])) () =
   let open Memo.O in
   let project = Scope.project scope in
   let implicit_transitive_deps =

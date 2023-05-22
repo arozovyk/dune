@@ -43,9 +43,11 @@ val create :
        (Module_name.t * Module.t list) list list Resolve.Memo.t
   -> ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
   -> ?direct_requires_per_module:
-       (Module_dep.t list -> Lib.t list Resolve.Memo.t)
+       (Module.t -> Dep_graph.t Ml_kind.Dict.t -> Lib.t list Resolve.Memo.t)
   -> ?requires_link_per_module:
-       (Module_dep.t list -> Lib.t list Resolve.t Memo.Lazy.t)
+       (   Module.t
+        -> Dep_graph.t Ml_kind.Dict.t
+        -> Lib.t list Resolve.t Memo.Lazy.t)
   -> unit
   -> t Memo.t
 
