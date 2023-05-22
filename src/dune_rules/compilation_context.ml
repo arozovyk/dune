@@ -58,6 +58,30 @@ module Includes = struct
               List.map entry_names ~f:(fun m ->
                   Module.name m |> Module_name.to_string)
             in
+            if
+              List.exists emnstr ~f:(fun emn ->
+                  String.equal emn "Fmt"
+                  && String.equal
+                       (Module.name md |> Module_name.to_string)
+                       "OLS")
+            then
+              Dune_util.Log.info
+                [ Pp.textf
+                    "Debugging FMT OLS %s \n\
+                     having entries: (%s)\n\
+                     for module %s\n\
+                     Odep {%s}\n\
+                     Flags [%s]\n\
+                     having re_exports [%s]\n"
+                    (Lib.name lib |> Lib_name.to_string)
+                    (String.concat emnstr ~sep:",")
+                    (Module.name md |> Module_name.to_string)
+                    (String.concat dep_names ~sep:",")
+                    (String.concat flags ~sep:",")
+                    (List.map r ~f:(fun lib ->
+                         Lib.name lib |> Lib_name.to_string)
+                    |> String.concat ~sep:",")
+                ];
             let melange_mode =
               Lib_mode.Map.get (Lib.info lib |> Lib_info.modes) Lib_mode.Melange
             in
@@ -67,12 +91,6 @@ module Includes = struct
             let local = Lib.Local.of_lib lib |> Option.is_none in
             let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
             if implements || virtual_ || local || melange_mode || entries_empty
-            then Some lib
-            else if
-              List.exists emnstr ~f:(fun emn ->
-                  let is_melange_wrapper = String.equal "Melange_wrapper" emn in
-                  let is_unwrapped = flag_open_present emn flags in
-                  is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
             then Some lib
             else if
               List.exists emnstr ~f:(fun emn ->
