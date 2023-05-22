@@ -42,6 +42,7 @@ val create :
   -> ?lib_top_module_map:
        (Module_name.t * Module.t list) list list Resolve.Memo.t
   -> ?lib_to_entry_modules_map:(Lib.t * Module.t list) list Resolve.Memo.t
+  -> ?entry_names_closure:(Lib.Local.t -> Module.t list Memo.t)
   -> unit
   -> t Memo.t
 

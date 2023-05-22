@@ -130,10 +130,13 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
         Memo.Lazy.force requires_link
       else requires_compile
     in
+    let entry_names_closure = Odoc.entry_modules_by_lib sctx in
+
     Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
       ~preprocessing:pp ~js_of_ocaml ~opaque:Inherit_from_settings
       ~package:exes.package ~lib_top_module_map ~lib_to_entry_modules_map
+      ~entry_names_closure
   in
   let stdlib_dir = ctx.lib_config.stdlib_dir in
   let* requires_compile = Compilation_context.requires_compile cctx in

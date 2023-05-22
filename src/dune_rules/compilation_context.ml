@@ -3,6 +3,88 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
+  let filter_updated (libs : Lib.t list) module_deps emns md =
+    let open Resolve.Memo.O in
+    let* (module_deps, flags), _ = module_deps in
+    let rec flag_open_present entry_lib_name l =
+      match l with
+      | flag :: entry_name :: t ->
+        if
+          String.equal flag "-open"
+          && String.is_prefix ~prefix:entry_lib_name entry_name
+        then true
+        else flag_open_present entry_lib_name (entry_name :: t)
+      | _ -> false
+    in
+    let dep_names =
+      List.map module_deps ~f:(fun mdep ->
+          let open Module_dep in
+          match mdep with
+          (* Lib shadowing by a local module obliges
+             us to also check if a lib is a local module *)
+          | Local m -> Module.name m |> Module_name.to_string
+          | External mname -> External_name.to_string mname)
+    in
+    let exists_in_odeps lib_name =
+      List.exists dep_names ~f:(fun odep ->
+          (*  Dune_util.Log.info [ Pp.textf "Comparing %s %s \n" lib_name odep ]; *)
+          String.equal lib_name odep || String.is_prefix ~prefix:odep lib_name)
+    in
+    (* if
+         (* FIXME: menhir mocks (i.e melange-compiler-libs.0.0.1-414) ? we skip for now  *)
+         String.is_suffix (Module.name md |> Module_name.to_string) ~suffix:"__mock"
+       then libs
+       else *)
+    let* entry_names_map =
+      List.map libs ~f:(fun lib ->
+          let local_lib = Lib.Local.of_lib lib in
+          if Option.is_none local_lib then Resolve.Memo.return (lib, [])
+          else
+            let em =
+              emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
+            in
+            Resolve.Memo.map em ~f:(fun emns_l -> (lib, emns_l)))
+      |> Resolve.Memo.all
+    in
+    if List.is_empty dep_names then Resolve.Memo.return libs
+    else
+      let r =
+        List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
+            let emnstr =
+              List.map entry_names ~f:(fun m ->
+                  Module.name m |> Module_name.to_string)
+            in
+            let melange_mode =
+              Lib_mode.Map.get (Lib.info lib |> Lib_info.modes) Lib_mode.Melange
+            in
+            let implements =
+              Option.is_some (Lib_info.implements (Lib.info lib))
+            in
+            let local = Lib.Local.of_lib lib |> Option.is_none in
+            let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
+            if implements || virtual_ || local || melange_mode then Some lib
+            else if
+              List.exists emnstr ~f:(fun emn ->
+                  let is_melange_wrapper = String.equal "Melange_wrapper" emn in
+                  let is_unwrapped = flag_open_present emn flags in
+                  is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
+            then Some lib
+            else (
+              Dune_util.Log.info
+                [ Pp.textf
+                    "Removing_upd %s having entries: (%s) for module %s\n\
+                     Odep {%s}\n\
+                     Flags [%s]\n"
+                    (Lib.name lib |> Lib_name.to_string)
+                    (String.concat emnstr ~sep:",")
+                    (Module.name md |> Module_name.to_string)
+                    (String.concat dep_names ~sep:",")
+                    (String.concat flags ~sep:",")
+                ];
+              None))
+      in
+      Resolve.Memo.return r
+
   let filter_with_odeps libs deps md lib_top_module_map lib_to_entry_modules_map
       =
     let open Resolve.Memo.O in
@@ -167,8 +249,13 @@ module Includes = struct
               else true)
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return []) () ~project ~opaque
+      ?(lib_to_entry_modules_map = Resolve.Memo.return [])
+      ?(direct_requires = Resolve.Memo.return []) ?link_requires
+      ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque
       ~requires ~md ~dep_graphs ~flags =
+    ignore direct_requires;
+    ignore link_requires;
+    ignore entry_names_closure;
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -198,14 +285,52 @@ module Includes = struct
       Action_builder.run cmb_flags Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
+    let flags =
+      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
+      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
+      let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
+      let cmb_itf_impl =
+        Action_builder.map2 module_deps_impl module_deps_intf
+          ~f:(fun inft impl -> List.append inft impl)
+      in
+
+      let cmb_flags =
+        Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
+      in
+      Action_builder.run cmb_flags Action_builder.Eager
+      |> Resolve.Memo.lift_memo
+    in
+    let requires =
+      if Dune_project.implicit_transitive_deps project then requires
+      else (
+        Dune_util.Log.info [ Pp.textf "We have direct requires" ];
+        Resolve.Memo.bind direct_requires ~f:(fun requires ->
+            let _o_deps =
+              let dep_graph_impl = Ml_kind.Dict.get dep_graphs Impl in
+              let dep_graph_inft = Ml_kind.Dict.get dep_graphs Intf in
+              let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
+              let module_deps_inft = Dep_graph.deps_of dep_graph_inft md in
+              Action_builder.run
+                (Action_builder.map2 module_deps_impl module_deps_inft
+                   ~f:List.append)
+                Action_builder.Eager
+              |> Resolve.Memo.lift_memo
+            in
+            filter_updated requires flags entry_names_closure md))
+    in
+    ignore deps;
+    ignore lib_to_entry_modules_map;
+    ignore lib_top_module_map;
+    ignore filter_with_odeps;
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
-           (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+           (let+ libs = requires in
+            (* let+ libs =
+                 filter_with_odeps libs deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -215,11 +340,11 @@ module Includes = struct
     let cmx_includes =
       Command.Args.memo
         (Resolve.Memo.args
-           (let* libs = requires in
-            let+ libs =
-              filter_with_odeps libs deps md lib_top_module_map
-                lib_to_entry_modules_map
-            in
+           (let+ libs = requires in
+            (* let+ libs =
+                 filter_with_odeps libs deps md lib_top_module_map
+                   lib_to_entry_modules_map
+               in *)
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -344,7 +469,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
     ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
-    ?(lib_to_entry_modules_map = Resolve.Memo.return []) () =
+    ?(lib_to_entry_modules_map = Resolve.Memo.return [])
+    ?(entry_names_closure = fun _ -> Memo.return []) () =
   let open Memo.O in
   let project = Scope.project scope in
   let requires_compile =
@@ -386,9 +512,11 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
+
   let includes =
     Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
-      ~lib_top_module_map ~lib_to_entry_modules_map ~flags ()
+      ~lib_top_module_map ~lib_to_entry_modules_map
+      ~direct_requires:requires_compile ~flags ~entry_names_closure ()
   in
   { super_context
   ; scope
