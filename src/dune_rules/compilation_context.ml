@@ -51,7 +51,7 @@ module Includes = struct
     in
     if List.is_empty dep_names then Resolve.Memo.return libs
     else
-      let r =
+      let r2 =
         List.filter_map entry_names_map ~f:(fun (lib, entry_names, r) ->
             let entries_empty = List.is_empty entry_names in
             let emnstr =
@@ -65,6 +65,95 @@ module Includes = struct
                        (Module.name md |> Module_name.to_string)
                        "OLS")
             then
+              Some
+                (let closure = Lib.closure [ lib ] ~linking:false in
+                 Resolve.Memo.map closure ~f:(fun cl ->
+                     Dune_util.Log.info
+                       [ Pp.textf
+                           "Debugging FMT OLS %s \n\
+                            having entries: (%s)\n\
+                            for module %s\n\
+                            Odep {%s}\n\
+                            Flags [%s]\n\
+                            having re_exports [%s]\n\
+                            having closure [%s]\n"
+                           (Lib.name lib |> Lib_name.to_string)
+                           (String.concat emnstr ~sep:",")
+                           (Module.name md |> Module_name.to_string)
+                           (String.concat dep_names ~sep:",")
+                           (String.concat flags ~sep:",")
+                           (List.map r ~f:(fun lib ->
+                                Lib.name lib |> Lib_name.to_string)
+                           |> String.concat ~sep:",")
+                           (List.map cl ~f:(fun lib ->
+                                Lib.name lib |> Lib_name.to_string)
+                           |> String.concat ~sep:",")
+                       ];
+                     Some lib))
+            else
+              let melange_mode =
+                Lib_mode.Map.get
+                  (Lib.info lib |> Lib_info.modes)
+                  Lib_mode.Melange
+              in
+              let implements =
+                Option.is_some (Lib_info.implements (Lib.info lib))
+              in
+              let local = Lib.Local.of_lib lib |> Option.is_none in
+              let virtual_ =
+                Option.is_some (Lib_info.virtual_ (Lib.info lib))
+              in
+              if
+                implements || virtual_ || local || melange_mode || entries_empty
+              then Some (Resolve.Memo.return (Some lib))
+              else if
+                List.exists emnstr ~f:(fun emn ->
+                    let is_melange_wrapper =
+                      String.equal "Melange_wrapper" emn
+                    in
+                    let is_unwrapped = flag_open_present emn flags in
+                    is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
+              then Some (Resolve.Memo.return (Some lib))
+              else (
+                Dune_util.Log.info
+                  [ Pp.textf
+                      "Removing_upd %s \n\
+                       having entries: (%s)\n\
+                       for module %s\n\
+                       Odep {%s}\n\
+                       Flags [%s]\n\
+                       having re_exports [%s]\n"
+                      (Lib.name lib |> Lib_name.to_string)
+                      (String.concat emnstr ~sep:",")
+                      (Module.name md |> Module_name.to_string)
+                      (String.concat dep_names ~sep:",")
+                      (String.concat flags ~sep:",")
+                      (List.map r ~f:(fun lib ->
+                           Lib.name lib |> Lib_name.to_string)
+                      |> String.concat ~sep:",")
+                  ];
+                None))
+      in
+      let r3 = Resolve.Memo.all r2 |> Resolve.Memo.map ~f:List.filter_opt in
+      let _r =
+        List.filter_map entry_names_map ~f:(fun (lib, entry_names, r) ->
+            let entries_empty = List.is_empty entry_names in
+            let emnstr =
+              List.map entry_names ~f:(fun m ->
+                  Module.name m |> Module_name.to_string)
+            in
+            if
+              List.exists emnstr ~f:(fun emn ->
+                  String.equal emn "Fmt"
+                  && String.equal
+                       (Module.name md |> Module_name.to_string)
+                       "OLS")
+            then
+              (* let closure =
+                   Action_builder.run
+                     (Lib.closure [ lib ] ~linking:false |> Resolve.Memo.read)
+                     Action_builder.Eager
+                 in *)
               Dune_util.Log.info
                 [ Pp.textf
                     "Debugging FMT OLS %s \n\
@@ -118,7 +207,7 @@ module Includes = struct
                 ];
               None))
       in
-      Resolve.Memo.return r
+      r3
 
   let filter_with_odeps libs deps md lib_top_module_map lib_to_entry_modules_map
       =
