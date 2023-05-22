@@ -50,6 +50,7 @@ module Includes = struct
     else
       let r =
         List.filter_map entry_names_map ~f:(fun (lib, entry_names) ->
+            let entries_empty = List.is_empty entry_names in
             let emnstr =
               List.map entry_names ~f:(fun m ->
                   Module.name m |> Module_name.to_string)
@@ -62,7 +63,8 @@ module Includes = struct
             in
             let local = Lib.Local.of_lib lib |> Option.is_none in
             let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
-            if implements || virtual_ || local || melange_mode then Some lib
+            if implements || virtual_ || local || melange_mode || entries_empty
+            then Some lib
             else if
               List.exists emnstr ~f:(fun emn ->
                   let is_melange_wrapper = String.equal "Melange_wrapper" emn in
