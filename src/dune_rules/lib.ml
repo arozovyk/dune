@@ -1738,7 +1738,10 @@ let _filter_with_odeps (libs : lib list) module_deps flags emns =
               let is_unwrapped = flag_open_present emn flags in
               is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
         then Some lib
-        else None)
+        else (
+          Dune_util.Log.info
+            [ Pp.textf "Removing %s" (name lib |> Lib_name.to_string) ];
+          None))
   in
   Resolve.Memo.return r
 (* List.filter_map libs ~f:(fun lib ->

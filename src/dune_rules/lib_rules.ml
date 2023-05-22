@@ -460,10 +460,10 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
   let requires_link = Lib.Compile.requires_link compile_info in
   let entry_names_closure = Odoc.entry_modules_by_lib sctx in
   let direct_requires_per_module =
-    Lib.Compile.direct_requires_per_module compile_info entry_names_closure
+    Lib.Compile.direct_requires_per_module compile_info [] entry_names_closure
   in
   let requires_link_per_module =
-    Lib.Compile.requires_link_per_module compile_info entry_names_closure
+    Lib.Compile.requires_link_per_module compile_info [] entry_names_closure
   in
   let modes =
     let { Lib_config.has_native; _ } = ctx.lib_config in

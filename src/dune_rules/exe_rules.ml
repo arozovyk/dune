@@ -131,12 +131,23 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
       else requires_compile
     in
     let entry_names_closure = Odoc.entry_modules_by_lib sctx in
-    let flags = Action_builder.run flags Eager in 
+    let all_flags =
+      Action_builder.map2
+        (Action_builder.map2
+           (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
+           (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
+           ~f:List.append)
+        (Ocaml_flags.get flags Lib_mode.Melange)
+        ~f:List.append
+    in
+    let* all_flags, _ = Action_builder.run all_flags Eager in
     let direct_requires_per_module =
-      Lib.Compile.direct_requires_per_module compile_info entry_names_closure
+      Lib.Compile.direct_requires_per_module compile_info all_flags
+        entry_names_closure
     in
     let requires_link_per_module =
-      Lib.Compile.requires_link_per_module compile_info entry_names_closure
+      Lib.Compile.requires_link_per_module compile_info all_flags
+        entry_names_closure
     in
     Compilation_context.create () ~loc:exes.buildable.loc ~super_context:sctx
       ~expander ~scope ~obj_dir ~modules ~flags ~requires_link ~requires_compile
