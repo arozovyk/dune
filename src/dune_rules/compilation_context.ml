@@ -96,6 +96,7 @@ module Includes = struct
                 Option.is_some (Lib_info.implements (Lib.info lib))
               in
               let local = Lib.Local.of_lib lib |> Option.is_none in
+
               let virtual_ =
                 Option.is_some (Lib_info.virtual_ (Lib.info lib))
               in
@@ -118,15 +119,36 @@ module Includes = struct
                        Resolve.Memo.bind emn_map ~f:(fun entry_names ->
                            if
                              List.exists entry_names ~f:(fun (_, e) ->
-                                 let emnstr =
-                                   List.map e ~f:(fun m ->
-                                       Module.name m |> Module_name.to_string)
-                                 in
-                                 List.exists emnstr
-                                   ~f:(fun entry_name_closure ->
-                                     exists_in_odeps entry_name_closure))
+                                 let entries_empty = List.is_empty e in
+                                 if entries_empty then true
+                                 else
+                                   let emnstr =
+                                     List.map e ~f:(fun m ->
+                                         Module.name m |> Module_name.to_string)
+                                   in
+
+                                   List.exists emnstr
+                                     ~f:(fun entry_name_closure ->
+                                       exists_in_odeps entry_name_closure))
                            then Resolve.Memo.return (Some lib)
-                           else Resolve.Memo.return None))
+                           else (
+                             Dune_util.Log.info
+                               [ Pp.textf
+                                   "Debugging remove  %s \n\
+                                    having entries: (%s)\n\
+                                    for module %s\n\
+                                    Odep {%s}\n\n\
+                                   \                                        \
+                                    having closure [%s]\n"
+                                   (Lib.name lib |> Lib_name.to_string)
+                                   (String.concat emnstr ~sep:",")
+                                   (Module.name md |> Module_name.to_string)
+                                   (String.concat dep_names ~sep:",")
+                                   (List.map c ~f:(fun lib ->
+                                        Lib.name lib |> Lib_name.to_string)
+                                   |> String.concat ~sep:",")
+                               ];
+                             Resolve.Memo.return None)))
                      (* Dune_util.Log.info
                           [ Pp.textf
                               "Removing_upd %s \n\
@@ -438,17 +460,6 @@ module Includes = struct
         (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
  *)
         Resolve.Memo.bind direct_requires ~f:(fun requires ->
-            let _o_deps =
-              let dep_graph_impl = Ml_kind.Dict.get dep_graphs Impl in
-              let dep_graph_inft = Ml_kind.Dict.get dep_graphs Intf in
-              let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-              let module_deps_inft = Dep_graph.deps_of dep_graph_inft md in
-              Action_builder.run
-                (Action_builder.map2 module_deps_impl module_deps_inft
-                   ~f:List.append)
-                Action_builder.Eager
-              |> Resolve.Memo.lift_memo
-            in
             filter_updated requires flags entry_names_closure md)
     in
     ignore deps;
