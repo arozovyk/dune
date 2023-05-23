@@ -78,8 +78,8 @@ module Includes = struct
             then
               Some
                 (let closure = Lib.closure [ lib ] ~linking:true in
-                 Resolve.Memo.map closure ~f:(fun cl ->
-                     Dune_util.Log.info
+                 Resolve.Memo.map closure ~f:(fun _cl ->
+                   (*   Dune_util.Log.info
                        [ Pp.textf
                            "Debugging FMT OLS %s \n\
                             having entries: (%s)\n\
@@ -95,7 +95,7 @@ module Includes = struct
                            (List.map cl ~f:(fun lib ->
                                 Lib.name lib |> Lib_name.to_string)
                            |> String.concat ~sep:",")
-                       ];
+                       ]; *)
                      Some lib))
             else
               let melange_mode =
@@ -146,13 +146,37 @@ module Includes = struct
                      ~f:(fun enl (*odep lib closure and its entry names*) ->
                        if
                          List.exists enl ~f:(fun (mn_list_odep, _) ->
+                           (*   Dune_util.Log.info
+                               [ Pp.textf
+                                   "For module %s\n\
+                                    Closure list odep [%s]\n\
+                                    Entries of filtered lib [%s]"
+                                   (Module.name md |> Module_name.to_string)
+                                   (List.map mn_list_odep
+                                      ~f:Module_name.to_string
+                                   |> String.concat ~sep:",")
+                                   (String.concat emnstr ~sep:",")
+                               ]; *)
                              List.exists mn_list_odep ~f:(fun mn_odep ->
                                  List.exists emnstr ~f:(fun init_lib_mn ->
                                      String.equal
                                        (Module_name.to_string mn_odep)
                                        init_lib_mn)))
                        then Some lib
-                       else None))
+                       else (
+                       (*   Dune_util.Log.info
+                           [ Pp.textf
+                               "Debugging remove  %s \n\
+                                having entries: (%s)\n\
+                                for module %s\n\
+                                Odep {%s}\n\n\
+                               \ "
+                               (Lib.name lib |> Lib_name.to_string)
+                               (String.concat emnstr ~sep:",")
+                               (Module.name md |> Module_name.to_string)
+                               (String.concat dep_names ~sep:",")
+                           ]; *)
+                         None)))
             (* let closure = Lib.closure [ lib ] ~linking:true in
                Some
                  (Resolve.Memo.bind closure ~f:(fun c ->
