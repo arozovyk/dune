@@ -255,7 +255,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
           ; cmt_args
           ; Command.Args.S obj_dirs
           ; Command.Args.as_any
-              (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) cm_kind)
+              (Lib_mode.Cm_kind.Map.get (CC.includes cctx) cm_kind)
           ; As extra_args
           ; S (melange_args cctx cm_kind m)
           ; A "-no-alias-deps"
@@ -351,7 +351,7 @@ let ocamlc_i ~deps cctx (m : Module.t) ~output =
              ; A "-I"
              ; Path (Path.build (Obj_dir.byte_dir obj_dir))
              ; Command.Args.as_any
-                 (Lib_mode.Cm_kind.Map.get (CC.includes ~md:m cctx) (Ocaml Cmo))
+                 (Lib_mode.Cm_kind.Map.get (CC.includes cctx) (Ocaml Cmo))
              ; opens modules m
              ; A "-short-paths"
              ; A "-i"

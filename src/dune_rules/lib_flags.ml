@@ -85,18 +85,6 @@ let link_deps sctx t mode =
 module L = struct
   type nonrec t = Lib.t list
 
-  let filter_by_name (t : t) name =
-    List.filter t ~f:(fun lib ->
-        let lib_name =
-          Lib.name lib |> Lib_name.to_string |> String.capitalize
-        in
-        String.equal lib_name name)
-
-  let to_string_list (t : t) =
-    List.map t ~f:(fun lib -> Lib.to_dyn lib |> Dyn.to_string)
-
-  let empty : t = []
-
   let to_iflags dirs =
     Command.Args.S
       (Path.Set.fold dirs ~init:[] ~f:(fun dir acc ->
