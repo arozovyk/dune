@@ -36,27 +36,38 @@ module Includes = struct
        then libs
        else *)
     let entry_names_map libs =
-      List.map libs ~f:(fun lib ->
-          let local_lib = Lib.Local.of_lib lib in
-          if Option.is_none local_lib then Resolve.Memo.return (lib, [])
-          else
-            let em =
-              emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
-            in
-            Resolve.Memo.map em ~f:(fun emns_l -> (lib, emns_l)))
-      |> Resolve.Memo.all
+      let inrt =
+        List.map libs ~f:(fun lib ->
+            let local_lib = Lib.Local.of_lib lib in
+            if Option.is_none local_lib then Resolve.Memo.return ([], lib)
+            else
+              let em =
+                emns (Option.value_exn local_lib) |> Resolve.Memo.lift_memo
+              in
+              Resolve.Memo.map em ~f:(fun emns_l ->
+                  (List.map emns_l ~f:Module.name, lib)))
+        |> Resolve.Memo.all
+      in
+      inrt
+    in
+
+    let map e =
+      let init = Module_name.Map.empty in
+      List.fold_left e ~init ~f:(fun init (ml, lib) ->
+          List.fold_left ml ~init ~f:(fun acc m_name ->
+              match Module_name.Map.add acc m_name lib with
+              | Ok map -> map
+              | Error _ -> acc))
     in
 
     let* enl = entry_names_map libs in
-
     if List.is_empty dep_names then Resolve.Memo.return libs
     else
       let r2 =
-        List.filter_map enl ~f:(fun (lib, entry_names) ->
+        List.filter_map enl ~f:(fun (entry_names, lib) ->
             let entries_empty = List.is_empty entry_names in
             let emnstr =
-              List.map entry_names ~f:(fun m ->
-                  Module.name m |> Module_name.to_string)
+              List.map entry_names ~f:(fun m -> Module_name.to_string m)
             in
             if
               List.exists emnstr ~f:(fun emn ->
@@ -112,69 +123,101 @@ module Includes = struct
                     is_melange_wrapper || is_unwrapped || exists_in_odeps emn)
               then Some (Resolve.Memo.return (Some lib))
               else
-                let closure = Lib.closure [ lib ] ~linking:true in
+                let enlmap = map enl in
+                (* Closure of each odep -> is []*)
                 Some
-                  (Resolve.Memo.bind closure ~f:(fun c ->
-                       let emn_map = entry_names_map c in
-                       Resolve.Memo.bind emn_map ~f:(fun entry_names ->
-                           if
-                             List.exists
-                               (List.filter entry_names ~f:(fun (_, e) ->
-                                    List.is_non_empty e))
-                               ~f:(fun (_, e) ->
-                                 let emnstr =
-                                   List.map e ~f:(fun m ->
-                                       Module.name m |> Module_name.to_string)
-                                 in
+                  (let odep_libs =
+                     List.filter_map dep_names ~f:(fun odep_module ->
+                         let odep_mod_name =
+                           Module_name.of_string odep_module
+                         in
+                         match Module_name.Map.find enlmap odep_mod_name with
+                         | Some lib ->
+                           let closure = Lib.closure [ lib ] ~linking:true in
+                           Some closure
+                         | None -> None)
+                     |> Resolve.Memo.all
+                     |> Resolve.Memo.map ~f:List.concat
+                   in
+                   let entry_odep_closure_map =
+                     Resolve.Memo.bind odep_libs ~f:(fun e -> entry_names_map e)
+                   in
+                   Resolve.Memo.map entry_odep_closure_map
+                     ~f:(fun enl (*odep lib closure and its entry names*) ->
+                       if
+                         List.exists enl ~f:(fun (mn_list_odep, _) ->
+                             List.exists mn_list_odep ~f:(fun mn_odep ->
+                                 List.exists emnstr ~f:(fun init_lib_mn ->
+                                     String.equal
+                                       (Module_name.to_string mn_odep)
+                                       init_lib_mn)))
+                       then Some lib
+                       else None))
+            (* let closure = Lib.closure [ lib ] ~linking:true in
+               Some
+                 (Resolve.Memo.bind closure ~f:(fun c ->
+                      let emn_map = entry_names_map c in
+                      Resolve.Memo.bind emn_map ~f:(fun entry_names ->
+                          if
+                            List.exists
+                              (List.filter entry_names ~f:(fun (e, _) ->
+                                   List.is_non_empty e))
+                              ~f:(fun (e, _) ->
+                                let emnstr =
+                                  List.map e ~f:(fun m ->
+                                      Module_name.to_string m)
+                                in
 
-                                 List.exists emnstr
-                                   ~f:(fun entry_name_closure ->
-                                     Dune_util.Log.info
-                                       [ Pp.textf
-                                           "Checkout existence of %s \nfor module %s\n\ Odep {%s}\n"
-                                           entry_name_closure
-                                           (Module.name md
-                                          |> Module_name.to_string)
-                                           (String.concat dep_names ~sep:",")
-                                       ];
-                                     exists_in_odeps entry_name_closure))
-                           then Resolve.Memo.return (Some lib)
-                           else (
-                             Dune_util.Log.info
-                               [ Pp.textf
-                                   "Debugging remove  %s \n\
-                                    having entries: (%s)\n\
-                                    for module %s\n\
-                                    Odep {%s}\n\n\
-                                   \                                        \
-                                    having closure [%s]\n"
-                                   (Lib.name lib |> Lib_name.to_string)
-                                   (String.concat emnstr ~sep:",")
-                                   (Module.name md |> Module_name.to_string)
-                                   (String.concat dep_names ~sep:",")
-                                   (List.map c ~f:(fun lib ->
-                                        Lib.name lib |> Lib_name.to_string)
-                                   |> String.concat ~sep:",")
-                               ];
-                             Resolve.Memo.return None)))
-                     (* Dune_util.Log.info
-                          [ Pp.textf
-                              "Removing_upd %s \n\
-                               having entries: (%s)\n\
-                               for module %s\n\
-                               Odep {%s}\n\
-                               Flags [%s]\n\
-                               having re_exports [%s]\n"
-                              (Lib.name lib |> Lib_name.to_string)
-                              (String.concat emnstr ~sep:",")
-                              (Module.name md |> Module_name.to_string)
-                              (String.concat dep_names ~sep:",")
-                              (String.concat flags ~sep:",")
-                              (List.map r ~f:(fun lib ->
-                                   Lib.name lib |> Lib_name.to_string)
-                              |> String.concat ~sep:",")
-                          ];
-                        None *)))
+                                List.exists emnstr
+                                  ~f:(fun entry_name_closure ->
+                                    Dune_util.Log.info
+                                      [ Pp.textf
+                                          "Checkout existence of %s \n\
+                                           for module %s\n\
+                                          \ Odep {%s}\n"
+                                          entry_name_closure
+                                          (Module.name md
+                                         |> Module_name.to_string)
+                                          (String.concat dep_names ~sep:",")
+                                      ];
+                                    exists_in_odeps entry_name_closure))
+                          then Resolve.Memo.return (Some lib)
+                          else (
+                            Dune_util.Log.info
+                              [ Pp.textf
+                                  "Debugging remove  %s \n\
+                                   having entries: (%s)\n\
+                                   for module %s\n\
+                                   Odep {%s}\n\n\
+                                  \                                        \
+                                   having closure [%s]\n"
+                                  (Lib.name lib |> Lib_name.to_string)
+                                  (String.concat emnstr ~sep:",")
+                                  (Module.name md |> Module_name.to_string)
+                                  (String.concat dep_names ~sep:",")
+                                  (List.map c ~f:(fun lib ->
+                                       Lib.name lib |> Lib_name.to_string)
+                                  |> String.concat ~sep:",")
+                              ];
+                            Resolve.Memo.return None))) *)
+            (* Dune_util.Log.info
+                 [ Pp.textf
+                     "Removing_upd %s \n\
+                      having entries: (%s)\n\
+                      for module %s\n\
+                      Odep {%s}\n\
+                      Flags [%s]\n\
+                      having re_exports [%s]\n"
+                     (Lib.name lib |> Lib_name.to_string)
+                     (String.concat emnstr ~sep:",")
+                     (Module.name md |> Module_name.to_string)
+                     (String.concat dep_names ~sep:",")
+                     (String.concat flags ~sep:",")
+                     (List.map r ~f:(fun lib ->
+                          Lib.name lib |> Lib_name.to_string)
+                     |> String.concat ~sep:",")
+                 ];
+               None *))
       in
       let r3 = Resolve.Memo.all r2 |> Resolve.Memo.map ~f:List.filter_opt in
       (* let _r =
