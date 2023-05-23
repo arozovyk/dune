@@ -68,7 +68,7 @@ module Compile : sig
   val for_lib : allow_overlaps:bool -> db -> lib -> t
 
   (** Return the list of dependencies needed for linking this library/exe *)
-  val requires_link : t -> lib list Resolve.t Memo.Lazy.t
+  val requires_link : t -> lib list Resolve.t Memo.Lazy.t Lib.Map.t
 
   (** Dependencies listed by the user + runtime dependencies from ppx *)
   val direct_requires : t -> lib list Resolve.Memo.t

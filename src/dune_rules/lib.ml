@@ -1681,7 +1681,7 @@ module Compile = struct
 
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
-    ; requires_link : t list Resolve.t Memo.Lazy.t
+    ; requires_link : t list Resolve.t Memo.Lazy.t Lib.Map.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
@@ -1704,9 +1704,9 @@ module Compile = struct
     let requires_link =
       let db = Option.some_if (not allow_overlaps) db in
       Memo.lazy_ (fun () ->
-          requires
-          >>= Resolve_names.compile_closure_with_overlap_checks db
-                ~forbidden_libraries:Map.empty)
+          Resolve.map requires ~f:(fun r ->
+              Resolve_names.compile_closure_with_overlap_checks db
+                ~forbidden_libraries:Map.empty r))
     in
     let merlin_ident = Merlin_ident.for_lib t.name in
     { direct_requires = requires
@@ -2061,5 +2061,3 @@ end = struct
 
   let hash = hash
 end
-
- 
