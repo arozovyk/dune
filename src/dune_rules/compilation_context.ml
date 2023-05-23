@@ -118,18 +118,26 @@ module Includes = struct
                        let emn_map = entry_names_map c in
                        Resolve.Memo.bind emn_map ~f:(fun entry_names ->
                            if
-                             List.exists entry_names ~f:(fun (_, e) ->
-                                 let entries_empty = List.is_empty e in
-                                 if entries_empty then true
-                                 else
-                                   let emnstr =
-                                     List.map e ~f:(fun m ->
-                                         Module.name m |> Module_name.to_string)
-                                   in
+                             List.exists
+                               (List.filter entry_names ~f:(fun (_, e) ->
+                                    List.is_non_empty e))
+                               ~f:(fun (_, e) ->
+                                 let emnstr =
+                                   List.map e ~f:(fun m ->
+                                       Module.name m |> Module_name.to_string)
+                                 in
 
-                                   List.exists emnstr
-                                     ~f:(fun entry_name_closure ->
-                                       exists_in_odeps entry_name_closure))
+                                 List.exists emnstr
+                                   ~f:(fun entry_name_closure ->
+                                     Dune_util.Log.info
+                                       [ Pp.textf
+                                           "Checkout existence of %s \nfor module %s\n\ Odep {%s}\n"
+                                           entry_name_closure
+                                           (Module.name md
+                                          |> Module_name.to_string)
+                                           (String.concat dep_names ~sep:",")
+                                       ];
+                                     exists_in_odeps entry_name_closure))
                            then Resolve.Memo.return (Some lib)
                            else (
                              Dune_util.Log.info
