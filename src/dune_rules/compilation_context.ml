@@ -66,7 +66,7 @@ module Includes = struct
                        "OLS")
             then
               Some
-                (let closure = Lib.closure [ lib ] ~linking:false in
+                (let closure = Lib.closure [ lib ] ~linking:true in
                  Resolve.Memo.map closure ~f:(fun cl ->
                      Dune_util.Log.info
                        [ Pp.textf
