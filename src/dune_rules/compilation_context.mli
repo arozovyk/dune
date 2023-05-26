@@ -28,7 +28,7 @@ val create :
   -> modules:Modules.t
   -> flags:Ocaml_flags.t
   -> requires_compile:Lib.t list Resolve.Memo.t
-  -> requires_link:Lib.t list Resolve.t Memo.Lazy.t
+  -> requires_link:(Lib.t list * Lib.t) list Resolve.t Memo.Lazy.t
   -> ?preprocessing:Pp_spec.t
   -> opaque:opaque
   -> ?stdlib:Ocaml_stdlib.t
@@ -67,7 +67,7 @@ val modules : t -> Modules.t
 
 val flags : t -> Ocaml_flags.t
 
-val requires_link : t -> Lib.t list Resolve.Memo.t
+val requires_link : t -> (Lib.t list * Lib.t) list Resolve.t Memo.t
 
 val requires_compile : t -> Lib.t list Resolve.Memo.t
 

@@ -444,8 +444,6 @@ let main_module_name t =
     | This x -> x
     | From _ -> assert false)
 
-let re_exports t = t.re_exports
-
 let wrapped t =
   let wrapped = Lib_info.wrapped t.info in
   match wrapped with
@@ -1681,7 +1679,7 @@ module Compile = struct
 
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
-    ; requires_link : t list Resolve.t Memo.Lazy.t Lib.Map.t
+    ; requires_link : (lib list * lib) list Resolve.t Memo.Lazy.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
@@ -1704,10 +1702,17 @@ module Compile = struct
     let requires_link =
       let db = Option.some_if (not allow_overlaps) db in
       Memo.lazy_ (fun () ->
-          Resolve.map requires ~f:(fun r ->
-              Resolve_names.compile_closure_with_overlap_checks db
-                ~forbidden_libraries:Map.empty r))
+          Resolve.Memo.bind requires ~f:(fun rlist ->
+              List.map rlist ~f:(fun lib ->
+                  let clos =
+                    Resolve_names.compile_closure_with_overlap_checks db
+                      ~forbidden_libraries:Map.empty [ lib ]
+                    |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))
+                  in
+                  clos)
+              |> Resolve.Memo.all))
     in
+
     let merlin_ident = Merlin_ident.for_lib t.name in
     { direct_requires = requires
     ; requires_link
@@ -1898,9 +1903,15 @@ module DB = struct
           in
           Resolve.Memo.push_stack_frame
             (fun () ->
-              Resolve_names.linking_closure_with_overlap_checks
-                (Option.some_if (not allow_overlaps) t)
-                ~forbidden_libraries res)
+              List.map res ~f:(fun lib ->
+                  let clos =
+                    Resolve_names.linking_closure_with_overlap_checks
+                      (Option.some_if (not allow_overlaps) t)
+                      ~forbidden_libraries [ lib ]
+                    |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))
+                  in
+                  clos)
+              |> Resolve.Memo.all)
             ~human_readable_description:(fun () ->
               match targets with
               | `Melange_emit name -> Pp.textf "melange target %s" name

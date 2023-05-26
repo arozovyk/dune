@@ -617,7 +617,7 @@ type t =
   ; modules : modules
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
-  ; requires_link : Lib.t list Resolve.t Memo.Lazy.t
+  ; requires_link : (Lib.t list * Lib.t) list Resolve.t Memo.Lazy.t
   ; includes : md:Module.t -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
@@ -684,16 +684,21 @@ let ocamldep_modules_data t = t.ocamldep_modules_data
 let dep_graphs t = t.modules.dep_graphs
 
 let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
-    ~requires_compile ~requires_link ?(preprocessing = Pp_spec.dummy) ~opaque
-    ?stdlib ~js_of_ocaml ~package ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
+    ~(requires_compile : Lib.t list Resolve.Memo.t)
+    ~(requires_link : (Lib.t list * Lib.t) list Resolve.t Memo.Lazy.t)
+    ?(preprocessing = Pp_spec.dummy) ~opaque ?stdlib ~js_of_ocaml ~package
+    ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
     ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ?(entry_names_closure = fun _ -> Memo.return []) () =
   let open Memo.O in
   let project = Scope.project scope in
+
   let requires_compile =
     if Dune_project.implicit_transitive_deps project then
       Memo.Lazy.force requires_link
+      |> Resolve.Memo.map ~f:(fun l ->
+             List.map l ~f:(fun (a, _) -> a) |> List.concat)
     else requires_compile
   in
   let sandbox =
@@ -841,7 +846,9 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   { cctx with
     opaque
   ; flags = Ocaml_flags.empty
-  ; requires_link = Memo.lazy_ (fun () -> requires)
+  ; requires_link =
+      Memo.lazy_ (fun () ->
+          Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r))))
   ; requires_compile = requires
   ; includes
   ; modules
@@ -854,7 +861,10 @@ let for_plugin_executable t ~embed_in_plugin_libraries =
   let libs = Scope.libs t.scope in
   let requires_link =
     Memo.lazy_ (fun () ->
-        Resolve.Memo.List.map ~f:(Lib.DB.resolve libs) embed_in_plugin_libraries)
+        Resolve.Memo.List.map
+          ~f:(fun l ->
+            Lib.DB.resolve libs l |> Resolve.Memo.map ~f:(fun l -> ([], l)))
+          embed_in_plugin_libraries)
   in
   { t with requires_link }
 

@@ -127,7 +127,9 @@ let executables_rules ~sctx ~dir ~expander ~dir_contents ~scope ~compile_info
     let project = Scope.project scope in
     let requires_compile =
       if Dune_project.implicit_transitive_deps project then
-        Memo.Lazy.force requires_link
+        let r_q = Memo.Lazy.force requires_link in
+        Resolve.Memo.map r_q ~f:(fun l ->
+            List.map l ~f:(fun (a, _) -> a) |> List.concat)
       else requires_compile
     in
     let entry_names_closure = Odoc.entry_modules_by_lib sctx in
@@ -255,6 +257,11 @@ let rules ?(lib_to_entry_modules_map = Resolve.Memo.return [])
   let* () = Buildable_rules.gen_select_rules sctx compile_info ~dir
   and* () =
     let requires_link = Lib.Compile.requires_link compile_info in
+    let requires_link =
+      Memo.Lazy.map requires_link ~f:(fun rl ->
+          Resolve.map rl ~f:(fun l ->
+              List.map l ~f:(fun (a, _) -> a) |> List.concat))
+    in
     Bootstrap_info.gen_rules sctx exes ~dir ~requires_link
   in
   Buildable_rules.with_lib_deps

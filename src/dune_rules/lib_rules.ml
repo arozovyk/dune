@@ -477,12 +477,12 @@ let cctx (lib : Library.t) ~sctx ~source_modules ~dir ~expander ~scope
   in
   let entry_names_closure = Odoc.entry_modules_by_lib sctx in
 
-  let project = Scope.project scope in
+  (* let project = Scope.project scope in
   let requires_compile =
     if Dune_project.implicit_transitive_deps project then
       Memo.Lazy.force requires_link
     else requires_compile
-  in
+  in *)
   Compilation_context.create () ~super_context:sctx ~expander ~scope ~obj_dir
     ~modules ~flags ~requires_compile ~requires_link ~preprocessing:pp
     ~opaque:Inherit_from_settings ~js_of_ocaml:(Some js_of_ocaml)
