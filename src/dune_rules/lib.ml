@@ -467,6 +467,15 @@ include Comparable.Make (T)
 module L = struct
   let top_closure l ~key ~deps =
     Id.Top_closure.top_closure l ~key:(fun t -> (key t).unique_id) ~deps
+
+  let filter_list_set set list =
+    let filtered_list, new_set =
+      List.fold_left list
+        ~f:(fun (l, s) e ->
+          if Set.mem s e then (e :: l, Set.remove s e) else (l, s))
+        ~init:([], set)
+    in
+    (List.rev filtered_list, new_set)
 end
 
 (* Sub-systems *)
@@ -1674,6 +1683,20 @@ let descriptive_closure (l : lib list) ~with_pps : lib list Memo.t =
   (* and then convert it to a list *)
   Set.to_list trans_closure
 
+let filter_list_set set list =
+  List.fold_map list ~init:set ~f:(fun s e ->
+      if Set.mem s e then (Set.remove s e, Some e) else (s, None))
+  |> fun (s, opt_list) -> (s, List.filter_opt opt_list)
+
+let uniq_linking_closure l =
+  Resolve.Memo.map l ~f:(fun a ->
+      let cl_l = List.split a in
+      let closures = fst cl_l in
+      let libs = snd cl_l in
+      let all_elements = Set.of_list (List.concat closures) in
+      let _, r = List.fold_map closures ~init:all_elements ~f:filter_list_set in
+      List.combine r libs)
+
 module Compile = struct
   module Resolved_select = Resolved_select
 
@@ -1703,14 +1726,14 @@ module Compile = struct
       let db = Option.some_if (not allow_overlaps) db in
       Memo.lazy_ (fun () ->
           Resolve.Memo.bind requires ~f:(fun rlist ->
-              List.map rlist ~f:(fun lib ->
+              Resolve.Memo.List.map rlist ~f:(fun lib ->
                   let clos =
                     Resolve_names.compile_closure_with_overlap_checks db
                       ~forbidden_libraries:Map.empty [ lib ]
                     |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))
                   in
-                  clos)
-              |> Resolve.Memo.all))
+                  clos))
+          |> uniq_linking_closure)
     in
 
     let merlin_ident = Merlin_ident.for_lib t.name in
@@ -1903,15 +1926,12 @@ module DB = struct
           in
           Resolve.Memo.push_stack_frame
             (fun () ->
-              List.map res ~f:(fun lib ->
-                  let clos =
-                    Resolve_names.linking_closure_with_overlap_checks
-                      (Option.some_if (not allow_overlaps) t)
-                      ~forbidden_libraries [ lib ]
-                    |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))
-                  in
-                  clos)
-              |> Resolve.Memo.all)
+              uniq_linking_closure
+                (Resolve.Memo.List.map res ~f:(fun lib ->
+                     Resolve_names.linking_closure_with_overlap_checks
+                       (Option.some_if (not allow_overlaps) t)
+                       ~forbidden_libraries [ lib ]
+                     |> Resolve.Memo.map ~f:(fun cl -> (cl, lib)))))
             ~human_readable_description:(fun () ->
               match targets with
               | `Melange_emit name -> Pp.textf "melange target %s" name

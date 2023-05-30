@@ -48,6 +48,8 @@ module L : sig
     -> key:('a -> t)
     -> deps:('a -> 'a list Resolve.Memo.t)
     -> ('a list, 'a list) Result.t Resolve.Memo.t
+
+  val filter_list_set : Set.t -> t list -> t list * Set.t
 end
 
 (** {1 Compilation contexts} *)
