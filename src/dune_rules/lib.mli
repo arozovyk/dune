@@ -48,6 +48,8 @@ module L : sig
     -> key:('a -> t)
     -> deps:('a -> 'a list Resolve.Memo.t)
     -> ('a list, 'a list) Result.t Resolve.Memo.t
+
+  val uniq : t list -> t list
 end
 
 (** {1 Compilation contexts} *)

@@ -240,7 +240,7 @@ let setup_emit_cmj_rules ~sctx ~dir ~scope ~expander ~dir_contents
             let open Resolve.Memo.O in
             Compilation_context.requires_link cctx
             |> Resolve.Memo.map ~f:(fun l ->
-                   List.map l ~f:(fun (a, _) -> a) |> List.concat)
+                   List.map l ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq)
             >>= js_targets_of_libs sctx ~module_systems ~target_dir
           in
           Action_builder.paths deps
@@ -375,7 +375,7 @@ let setup_entries_js ~sctx ~dir ~dir_contents ~scope ~compile_info ~target_dir
   let includes =
     let requires_link =
       Resolve.map requires_link ~f:(fun l ->
-          List.map l ~f:(fun (a, _) -> a) |> List.concat)
+          List.map l ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq)
     in
     cmj_includes ~requires_link ~scope
   in
@@ -416,7 +416,7 @@ let setup_js_rules_libraries ~dir ~scope ~target_dir ~sctx ~requires_link ~mode
         in
         let requires_link =
           Resolve.map requires_link ~f:(fun l ->
-              List.map l ~f:(fun (a, _) -> a) |> List.concat)
+              List.map l ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq)
         in
         cmj_includes ~requires_link ~scope
       in
@@ -439,7 +439,7 @@ let setup_js_rules_libraries ~dir ~scope ~target_dir ~sctx ~requires_link ~mode
             in
             let requires_link =
               Resolve.map requires_link ~f:(fun l ->
-                  List.map l ~f:(fun (a, _) -> a) |> List.concat)
+                  List.map l ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq)
             in
             cmj_includes ~requires_link ~scope
           in
@@ -466,7 +466,7 @@ let setup_emit_js_rules ~dir_contents ~dir ~scope ~sctx mel =
       |> Memo.Lazy.force >>= Resolve.read_memo
     in
     let requires_link =
-      List.map requires_link ~f:(fun (a, _) -> a) |> List.concat
+      List.map requires_link ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq
     in
     setup_js_rules_libraries ~dir ~scope ~target_dir ~sctx ~requires_link ~mode
       mel

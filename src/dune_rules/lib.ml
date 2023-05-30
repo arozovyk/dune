@@ -467,6 +467,16 @@ include Comparable.Make (T)
 module L = struct
   let top_closure l ~key ~deps =
     Id.Top_closure.top_closure l ~key:(fun t -> (key t).unique_id) ~deps
+
+  let rec uniq x =
+    let rec uniq_help l n =
+      match l with
+      | [] -> []
+      | h :: t -> if equal n h then uniq_help t n else h :: uniq_help t n
+    in
+    match x with
+    | [] -> []
+    | h :: t -> h :: uniq_help (uniq t) h
 end
 
 (* Sub-systems *)

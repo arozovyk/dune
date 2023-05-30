@@ -217,7 +217,9 @@ let findlib_predicates_set_by_dune pred =
 let handle_special_libs cctx =
   let ( let& ) m f = Resolve.Memo.bind m ~f in
   let& all_libs = Compilation_context.requires_link cctx in
-  let all_libs = List.map all_libs ~f:(fun (a, _) -> a) |> List.concat in
+  let all_libs =
+    List.map all_libs ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq
+  in
   let obj_dir = Compilation_context.obj_dir cctx |> Obj_dir.of_local in
   let ctx =
     let sctx = Compilation_context.super_context cctx in

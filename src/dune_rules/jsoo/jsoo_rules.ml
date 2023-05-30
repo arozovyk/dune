@@ -217,7 +217,9 @@ let standalone_runtime_rule cc ~javascript_files ~target ~flags =
       [ Resolve.Memo.args
           (let open Resolve.Memo.O in
           let+ libs = libs in
-          let libs = List.map libs ~f:(fun (a, _) -> a) |> List.concat in
+          let libs =
+            List.map libs ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq
+          in
           Command.Args.Deps (jsoo_runtime_files libs))
       ; Deps (List.map ~f:Path.build javascript_files)
       ]
@@ -236,7 +238,9 @@ let exe_rule cc ~javascript_files ~src ~target ~flags =
       [ Resolve.Memo.args
           (let open Resolve.Memo.O in
           let+ libs = libs in
-          let libs = List.map libs ~f:(fun (a, _) -> a) |> List.concat in
+          let libs =
+            List.map libs ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq
+          in
 
           Command.Args.Deps (jsoo_runtime_files libs))
       ; Deps (List.map ~f:Path.build javascript_files)
@@ -293,7 +297,9 @@ let link_rule cc ~runtime ~target ~obj_dir cm ~flags ~linkall
     and+ jsoo_version =
       Action_builder.of_memo (Version.jsoo_version (jsoo ~dir sctx))
     in
-    let libs = List.map libs ~f:(fun (a, _) -> a) |> List.concat in
+    let libs =
+      List.map libs ~f:(fun (a, _) -> a) |> List.concat |> Lib.L.uniq
+    in
 
     (* Special case for the stdlib because it is not referenced in the
        META *)
