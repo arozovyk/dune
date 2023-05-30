@@ -1727,12 +1727,9 @@ module Compile = struct
       Memo.lazy_ (fun () ->
           Resolve.Memo.bind requires ~f:(fun rlist ->
               Resolve.Memo.List.map rlist ~f:(fun lib ->
-                  let clos =
-                    Resolve_names.compile_closure_with_overlap_checks db
-                      ~forbidden_libraries:Map.empty [ lib ]
-                    |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))
-                  in
-                  clos))
+                  Resolve_names.compile_closure_with_overlap_checks db
+                    ~forbidden_libraries:Map.empty [ lib ]
+                  |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))))
           |> uniq_linking_closure)
     in
 

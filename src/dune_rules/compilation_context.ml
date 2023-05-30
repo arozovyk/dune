@@ -3,7 +3,7 @@ open Import
 module Includes = struct
   type t = Command.Args.without_targets Command.Args.t Lib_mode.Cm_kind.Map.t
 
-  let filter_updated (libs : Lib.t list) module_deps emns md =
+  let _filter_updated (libs : Lib.t list) module_deps emns md =
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = module_deps in
     let rec flag_open_present entry_lib_name l =
@@ -163,20 +163,20 @@ module Includes = struct
                                        (Module_name.to_string mn_odep)
                                        init_lib_mn)))
                        then Some lib
-                       else (
-                         Dune_util.Log.info
-                           [ Pp.textf
-                               "Debugging remove  %s \n\
-                                having entries: (%s)\n\
-                                for module %s\n\
-                                Odep {%s}\n\n\
-                               \ "
-                               (Lib.name lib |> Lib_name.to_string)
-                               (String.concat emnstr ~sep:",")
-                               (Module.name md |> Module_name.to_string)
-                               (String.concat dep_names ~sep:",")
-                           ];
-                         None)))
+                       else
+                         (* Dune_util.Log.info
+                            [ Pp.textf
+                                "Debugging remove  %s \n\
+                                 having entries: (%s)\n\
+                                 for module %s\n\
+                                 Odep {%s}\n\n\
+                                \ "
+                                (Lib.name lib |> Lib_name.to_string)
+                                (String.concat emnstr ~sep:",")
+                                (Module.name md |> Module_name.to_string)
+                                (String.concat dep_names ~sep:",")
+                            ]; *)
+                         None))
             (* let closure = Lib.closure [ lib ] ~linking:true in
                Some
                  (Resolve.Memo.bind closure ~f:(fun c ->
@@ -313,8 +313,8 @@ module Includes = struct
          in *)
       r3
 
-  let filter_with_odeps libs deps md lib_top_module_map lib_to_entry_modules_map
-      =
+  let _filter_with_odeps libs deps md lib_top_module_map
+      lib_to_entry_modules_map =
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = deps in
     let* lib_to_entry_modules_map = lib_to_entry_modules_map in
@@ -529,18 +529,18 @@ module Includes = struct
       Action_builder.run cmb_flags Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
+    ignore flags;
     let requires =
       if Dune_project.implicit_transitive_deps project then requires
-      else
-        (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
+      else requires
+      (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
  *)
-        Resolve.Memo.bind direct_requires ~f:(fun requires ->
-            filter_updated requires flags entry_names_closure md)
+      (* Resolve.Memo.bind direct_requires ~f:(fun requires ->
+          filter_updated requires flags entry_names_closure md) *)
     in
     ignore deps;
     ignore lib_to_entry_modules_map;
     ignore lib_top_module_map;
-    ignore filter_with_odeps;
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
