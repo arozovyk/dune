@@ -37,6 +37,8 @@ let parse_module_names ~dir ~(unit : Module.t) ~modules words =
           ])
 
 let parse_deps_exn ~file lines =
+  Dune_util.Log.info [ Pp.textf "parse_deps_exn" ];
+
   let invalid () =
     User_error.raise
       [ Pp.textf "ocamldep returned unexpected output for %s:"
@@ -111,6 +113,7 @@ let deps_of ({ sandbox; modules; sctx; dir; obj_dir; vimpl; stdlib = _ } as md)
     Action_builder.map lines ~f:(fun lines ->
         let parsed = parse_deps_exn ~file:(Module.File.path source) lines in
         parsed |> parse_module_names ~dir:md.dir ~unit ~modules)
+    |> Action_builder.memoize "module_names"
   in
   let make_paths f filter =
     let open Action_builder.O in
