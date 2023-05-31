@@ -21,3 +21,5 @@ val is_external : t -> bool
 val filter_local : t -> Module.t option
 
 val filter_external : t -> External_name.t option
+
+val compare : t -> t -> Ordering.t

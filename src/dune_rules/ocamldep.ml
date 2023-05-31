@@ -66,7 +66,7 @@ let parse_compilation_units ~modules all_deps_output ext =
         | None ->
           Some (Module_dep.External (Module_dep.External_name.of_string m)))
   in
-  List.append loc ext
+  List.append loc ext |> List.sort_uniq ~compare:Module_dep.compare
 
 let deps_of ({ sandbox; modules; sctx; dir; obj_dir; vimpl; stdlib = _ } as md)
     ~ml_kind unit =
@@ -190,7 +190,8 @@ let deps_of ({ sandbox; modules; sctx; dir; obj_dir; vimpl; stdlib = _ } as md)
       Action_builder.map2
         ~f:(fun x y -> parse_compilation_units ~modules x y)
         (Action_builder.lines_of all_deps_file)
-        module_names
+        (Action_builder.map module_names
+           ~f:(List.filter ~f:Module_dep.is_external))
     else
       Action_builder.map
         ~f:(fun x -> parse_compilation_units ~modules x [])

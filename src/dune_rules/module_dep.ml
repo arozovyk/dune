@@ -33,3 +33,10 @@ let filter_external t =
   match t with
   | External m_name -> Some m_name
   | _ -> None
+
+let compare a b =
+  match (a, b) with
+  | External a_name, External b_name -> Stdune.String.compare a_name b_name
+  | Local a, Local b -> Module_name.compare (Module.name a) (Module.name b)
+  | Local _, External _ -> Ordering.Lt
+  | External _, Local _ -> Ordering.Gt
