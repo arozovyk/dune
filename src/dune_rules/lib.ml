@@ -1683,18 +1683,27 @@ let descriptive_closure (l : lib list) ~with_pps : lib list Memo.t =
   (* and then convert it to a list *)
   Set.to_list trans_closure
 
-let filter_list_set set list =
-  List.fold_map list ~init:set ~f:(fun s e ->
-      if Set.mem s e then (Set.remove s e, Some e) else (s, None))
-  |> fun (s, opt_list) -> (s, List.filter_opt opt_list)
+let unique_sublists lsts =
+  let rec aux seen = function
+    | [] -> []
+    | h :: t ->
+      let new_list = List.filter ~f:(fun x -> not (Set.mem seen x)) h in
+      if List.is_empty new_list then new_list :: aux seen t
+      else
+        new_list
+        :: aux
+             (List.fold_right new_list ~init:seen ~f:(fun a b -> Set.add b a))
+             t
+  in
+  aux Set.empty lsts
 
 let uniq_linking_closure l =
   Resolve.Memo.map l ~f:(fun a ->
       let cl_l = List.split a in
       let closures = fst cl_l in
       let libs = snd cl_l in
-      let all_elements = Set.of_list (List.concat closures) in
-      let _, r = List.fold_map closures ~init:all_elements ~f:filter_list_set in
+      let r = unique_sublists closures in
+  
       List.combine r libs)
 
 module Compile = struct
