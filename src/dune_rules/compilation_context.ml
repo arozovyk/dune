@@ -477,12 +477,9 @@ module Includes = struct
               else true)
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return [])
-      ?(direct_requires = Resolve.Memo.return []) ?link_requires
-      ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque
-      ~requires ~md ~dep_graphs ~flags =
-    ignore direct_requires;
-    ignore link_requires;
+      ?(lib_to_entry_modules_map = Resolve.Memo.return []) ~requires_link
+      ~requires_compile ?(entry_names_closure = fun _ -> Memo.return []) ()
+      ~project ~opaque ~md ~dep_graphs ~flags =
     ignore entry_names_closure;
     let flags =
       Action_builder.map2
@@ -506,7 +503,6 @@ module Includes = struct
         Action_builder.map2 module_deps_impl module_deps_intf
           ~f:(fun inft impl -> List.append inft impl)
       in
-
       let cmb_flags =
         Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
       in
@@ -522,7 +518,6 @@ module Includes = struct
         Action_builder.map2 module_deps_impl module_deps_intf
           ~f:(fun inft impl -> List.append inft impl)
       in
-
       let cmb_flags =
         Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
       in
@@ -531,12 +526,11 @@ module Includes = struct
     in
     ignore flags;
     let requires =
-      if Dune_project.implicit_transitive_deps project then requires
-      else requires
-      (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
- *)
-      (* Resolve.Memo.bind direct_requires ~f:(fun requires ->
-          filter_updated requires flags entry_names_closure md) *)
+      if Dune_project.implicit_transitive_deps project then
+        requires_link
+        |> Resolve.Memo.map ~f:(fun l ->
+               List.map l ~f:(fun (a, _) -> a) |> List.concat)
+      else requires_compile
     in
     ignore deps;
     ignore lib_to_entry_modules_map;
@@ -694,13 +688,6 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   let open Memo.O in
   let project = Scope.project scope in
 
-  let requires_compile =
-    if Dune_project.implicit_transitive_deps project then
-      Memo.Lazy.force requires_link
-      |> Resolve.Memo.map ~f:(fun l ->
-             List.map l ~f:(fun (a, _) -> a) |> List.concat)
-    else requires_compile
-  in
   let sandbox =
     (* With sandboxing, there are a few build errors in ocaml platform 1162238ae
        like: File "ocaml_modules/ocamlgraph/src/pack.ml", line 1: Error: The
@@ -737,9 +724,9 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   in
 
   let includes =
-    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
-      ~lib_top_module_map ~lib_to_entry_modules_map
-      ~direct_requires:requires_compile ~flags ~entry_names_closure ()
+    Includes.make ~project ~opaque ~dep_graphs ~lib_top_module_map
+      ~requires_link:(Memo.Lazy.force requires_link)
+      ~requires_compile ~lib_to_entry_modules_map ~flags ~entry_names_closure ()
   in
   { super_context
   ; scope
@@ -839,16 +826,20 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
       ~per_module:Module_name.Unique.Map.empty
   in
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
+  let requires_link =
+    Memo.lazy_ (fun () ->
+        Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r))))
+  in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~requires ~flags ()
+      ~requires_compile:requires
+      ~requires_link:(Memo.Lazy.force requires_link)
+      ~flags ()
   in
   { cctx with
     opaque
   ; flags = Ocaml_flags.empty
-  ; requires_link =
-      Memo.lazy_ (fun () ->
-          Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r))))
+  ; requires_link
   ; requires_compile = requires
   ; includes
   ; modules
