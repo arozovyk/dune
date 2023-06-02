@@ -476,7 +476,7 @@ module Includes = struct
                     else true)
               else true)
 
-  let filter_ocamldep link_requires module_deps entry_names_closure =
+  let filter_ocamldep link_requires module_deps entry_names_closure md =
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = module_deps in
     let flag_open_present entry_lib_name =
@@ -505,62 +505,107 @@ module Includes = struct
     ignore flag_open_present;
     ignore link_requires;
     ignore entry_names_closure;
+    let not_filtrable lib =
+      let melange_mode =
+        Lib_mode.Map.get (Lib.info lib |> Lib_info.modes) Lib_mode.Melange
+      in
+      let implements = Option.is_some (Lib_info.implements (Lib.info lib)) in
+      let local = Lib.Local.of_lib lib |> Option.is_none in
 
+      let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
+      melange_mode || implements || local || virtual_
+    in
     let+ requires =
       Resolve.Memo.bind link_requires ~f:(fun lcs ->
           Resolve.Memo.List.map lcs ~f:(fun (lib, closure) ->
               let local_lib = Lib.Local.of_lib lib in
-              if Option.is_none local_lib then
+              if Option.is_none local_lib || not_filtrable lib then
                 Resolve.Memo.return (Some (lib, closure))
               else
                 let* (em : Module.t list) =
                   entry_names_closure (Option.value_exn local_lib)
                   |> Resolve.Memo.lift_memo
                 in
+                Dune_util.Log.info
+                  [ Pp.textf "Entry names of %s %s"
+                      (Lib.name lib |> Lib_name.to_string)
+                      (List.map em ~f:(fun l ->
+                           Module.name l |> Module_name.to_string)
+                      |> String.concat ~sep:",")
+                  ];
                 let+ closure_names =
                   Resolve.Memo.List.fold_left closure ~init:[]
                     ~f:(fun acc libc ->
-                      let local_lib = Lib.Local.of_lib libc in
-                      if Option.is_none local_lib then Resolve.Memo.return []
+                      if not_filtrable libc then Resolve.Memo.return []
                       else
-                        let+ (em : Module.t list) =
-                          entry_names_closure (Option.value_exn local_lib)
-                          |> Resolve.Memo.lift_memo
-                        in
-                        if List.is_empty em then [] else List.append acc em)
+                        let local_lib = Lib.Local.of_lib libc in
+                        if Option.is_none local_lib then Resolve.Memo.return []
+                        else
+                          let+ (em : Module.t list) =
+                            entry_names_closure (Option.value_exn local_lib)
+                            |> Resolve.Memo.lift_memo
+                          in
+                          Dune_util.Log.info
+                            [ Pp.textf
+                                "(Module:%s)Closure of (%s) gave lib (%s) \
+                                 having entry names: (%s)\n"
+                                (Module.name md |> Module_name.to_string)
+                                (Lib.name lib |> Lib_name.to_string)
+                                (Lib.name libc |> Lib_name.to_string)
+                                (List.map em ~f:(fun l ->
+                                     Module.name l |> Module_name.to_string)
+                                |> String.concat ~sep:",")
+                            ];
+                          if List.is_empty em then [] else List.append acc em)
                 in
+
                 if List.is_empty em || List.is_empty closure_names then
                   Some (lib, closure)
                 else
                   let module_names = List.append em closure_names in
                   if
-                    Dune_util.Log.info
-                      [ Pp.textf
-                          "\n\
-                           Gona see for lib %s if dep_names (%s) exits in{ %s}"
-                          (Lib.name lib |> Lib_name.to_string)
-                          (String.concat ~sep:"," dep_names)
-                          (List.map module_names ~f:(fun l ->
-                               Module.name l |> Module_name.to_string)
-                          |> String.concat ~sep:",")
-                      ];
-                    List.exists dep_names ~f:(fun ocamldep_out ->
-                        let ocamldep_out_mn =
-                          Module_name.of_string ocamldep_out
-                        in
-                        List.exists module_names ~f:(fun a ->
-                            let a = Module.name a in
-                            flag_open_present (Module_name.to_string a)
-                            || Module_name.equal a ocamldep_out_mn))
+                    (* Dune_util.Log.info
+                       [ Pp.textf
+                           "\n\
+                            Gona see for lib %s if dep_names (%s) exits in{ %s}"
+                           (Lib.name lib |> Lib_name.to_string)
+                           (String.concat ~sep:"," dep_names)
+                           (List.map module_names ~f:(fun l ->
+                                Module.name l |> Module_name.to_string)
+                           |> String.concat ~sep:",")
+                       ]; *)
+                    let ocamldep_output_exists_in_module_names =
+                      List.exists dep_names ~f:(fun ocamldep_out ->
+                          let ocamldep_out_mn =
+                            Module_name.of_string ocamldep_out
+                          in
+                          List.exists module_names ~f:(fun a ->
+                              let a = Module.name a in
+                              flag_open_present (Module_name.to_string a)
+                              || Module_name.equal a ocamldep_out_mn))
+                    in
+                    ocamldep_output_exists_in_module_names
                   then Some (lib, closure)
                   else (
                     Dune_util.Log.info
-                      [ Pp.textf "None for %s"
+                      [ Pp.textf
+                          "Removing lib %s for module %s\n\
+                           Entry modules of lib : {%s} closure names of it \
+                           [%s] ocamldeps names (%s)\n\n"
                           (Lib.name lib |> Lib_name.to_string)
+                          (Module.name md |> Module_name.to_string)
+                          (List.map em ~f:(fun l ->
+                               Module.name l |> Module_name.to_string)
+                          |> String.concat ~sep:",")
+                          (List.map closure_names ~f:(fun l ->
+                               Module.name l |> Module_name.to_string)
+                          |> String.concat ~sep:";")
+                          (String.concat dep_names ~sep:",")
                       ];
                     None)))
     in
-    List.iter requires ~f:(fun ropt ->
+
+    (* List.iter requires ~f:(fun ropt ->
         match ropt with
         | Some (lib, clos) ->
           Dune_util.Log.info
@@ -570,8 +615,7 @@ module Includes = struct
                      Lib.name lib |> Lib_name.to_string)
                 |> String.concat ~sep:",")
             ]
-        | None -> ());
-
+        | None -> ()); *)
     let requires = List.filter_opt requires in
     (*     let+ requires = Lib.uniq_linking_closure link_requires in
  *)
@@ -642,7 +686,7 @@ module Includes = struct
     ignore flags;
     let requires =
       if Dune_project.implicit_transitive_deps project then
-        filter_ocamldep link_requires flags entry_names_closure
+        filter_ocamldep link_requires flags entry_names_closure md
       else compile_requires
     in
 
