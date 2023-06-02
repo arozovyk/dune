@@ -478,9 +478,9 @@ module Includes = struct
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return [])
-      ?(direct_requires = Resolve.Memo.return []) ?link_requires
-      ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque
-      ~requires ~md ~dep_graphs ~flags =
+      ?(direct_requires = Resolve.Memo.return []) ~link_requires
+      ~compile_requires ?(entry_names_closure = fun _ -> Memo.return []) ()
+      ~project ~opaque ~md ~dep_graphs ~flags =
     ignore direct_requires;
     ignore link_requires;
     ignore entry_names_closure;
@@ -531,8 +531,10 @@ module Includes = struct
     in
     ignore flags;
     let requires =
-      if Dune_project.implicit_transitive_deps project then requires
-      else requires
+      if Dune_project.implicit_transitive_deps project then compile_requires
+      else
+        Resolve.Memo.map link_requires ~f:(fun l ->
+            List.map l ~f:(fun (a, _) -> a) |> List.concat)
       (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
  *)
       (* Resolve.Memo.bind direct_requires ~f:(fun requires ->
@@ -737,9 +739,11 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   in
 
   let includes =
-    Includes.make ~project ~opaque ~requires:requires_compile ~dep_graphs
-      ~lib_top_module_map ~lib_to_entry_modules_map
-      ~direct_requires:requires_compile ~flags ~entry_names_closure ()
+    Includes.make ~project ~opaque ~dep_graphs
+      ~link_requires:(Memo.Lazy.force requires_link)
+      ~compile_requires:requires_compile ~lib_top_module_map
+      ~lib_to_entry_modules_map ~direct_requires:requires_compile ~flags
+      ~entry_names_closure ()
   in
   { super_context
   ; scope
@@ -839,16 +843,17 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
       ~per_module:Module_name.Unique.Map.empty
   in
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
+  let requires_link =
+    Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r)))
+  in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~requires ~flags ()
+      ~link_requires:requires_link ~compile_requires:requires ~flags ()
   in
   { cctx with
     opaque
   ; flags = Ocaml_flags.empty
-  ; requires_link =
-      Memo.lazy_ (fun () ->
-          Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r))))
+  ; requires_link = Memo.lazy_ (fun () -> requires_link)
   ; requires_compile = requires
   ; includes
   ; modules

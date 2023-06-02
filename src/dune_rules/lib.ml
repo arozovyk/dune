@@ -1703,7 +1703,6 @@ let uniq_linking_closure l =
       let closures = fst cl_l in
       let libs = snd cl_l in
       let r = unique_sublists closures in
-  
       List.combine r libs)
 
 module Compile = struct
