@@ -515,7 +515,7 @@ module Includes = struct
       let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
       melange_mode || implements || local || virtual_
     in
-    let+ requires =
+    let* requires =
       Resolve.Memo.bind link_requires ~f:(fun lcs ->
           Resolve.Memo.List.map lcs ~f:(fun (lib, closure) ->
               let local_lib = Lib.Local.of_lib lib in
@@ -582,7 +582,12 @@ module Includes = struct
 
                           List.exists module_names ~f:(fun a ->
                               let a = Module.name a in
-                              flag_open_present (Module_name.to_string a)
+                              let is_melange_wrapper =
+                                String.equal "Melange_wrapper"
+                                  (Module_name.to_string a)
+                              in
+                              is_melange_wrapper
+                              || flag_open_present (Module_name.to_string a)
                               || Module_name.equal a ocamldep_out_mn))
                     in
 
@@ -619,8 +624,8 @@ module Includes = struct
             ]
         | None -> ()); *)
     let requires = List.filter_opt requires in
-    (*     let+ requires = Lib.uniq_linking_closure link_requires in
- *)
+    let+ requires = Lib.uniq_linking_closure (Resolve.Memo.return requires) in
+
     let result =
       List.fold_left requires ~init:Lib.Set.empty ~f:(fun set (lib, closure) ->
           let set = Lib.Set.add set lib in
