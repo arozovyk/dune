@@ -120,7 +120,7 @@ module Module = struct
         let* requires = Compilation_context.requires_link cctx in
         Dune_rules.Resolve.read_memo
           (Dune_rules.Resolve.map requires ~f:(fun reqs ->
-               List.map reqs ~f:(fun (_, a) -> a) |> List.concat))
+               List.map reqs ~f:(fun (_,a) -> a) |> List.concat))
       in
       let private_obj_dir = Top_module.private_obj_dir ctx mod_ in
       let include_paths =

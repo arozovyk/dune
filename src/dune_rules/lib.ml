@@ -1737,8 +1737,7 @@ module Compile = struct
               Resolve.Memo.List.map rlist ~f:(fun lib ->
                   Resolve_names.compile_closure_with_overlap_checks db
                     ~forbidden_libraries:Map.empty [ lib ]
-                  |> Resolve.Memo.map ~f:(fun cl -> (lib, cl))))
-          |> uniq_linking_closure)
+                  |> Resolve.Memo.map ~f:(fun cl -> (lib, cl)))))
     in
 
     let merlin_ident = Merlin_ident.for_lib t.name in
@@ -1931,12 +1930,11 @@ module DB = struct
           in
           Resolve.Memo.push_stack_frame
             (fun () ->
-              uniq_linking_closure
-                (Resolve.Memo.List.map res ~f:(fun lib ->
-                     Resolve_names.linking_closure_with_overlap_checks
-                       (Option.some_if (not allow_overlaps) t)
-                       ~forbidden_libraries [ lib ]
-                     |> Resolve.Memo.map ~f:(fun cl -> (lib, cl)))))
+              Resolve.Memo.List.map res ~f:(fun lib ->
+                  Resolve_names.linking_closure_with_overlap_checks
+                    (Option.some_if (not allow_overlaps) t)
+                    ~forbidden_libraries [ lib ]
+                  |> Resolve.Memo.map ~f:(fun cl -> (lib, cl))))
             ~human_readable_description:(fun () ->
               match targets with
               | `Melange_emit name -> Pp.textf "melange target %s" name

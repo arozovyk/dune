@@ -476,21 +476,115 @@ module Includes = struct
                     else true)
               else true)
 
-  let filter_ocamldep link_requires =
-    Resolve.Memo.map link_requires ~f:(fun l ->
-        Dune_util.Log.info
-          [ Pp.textf "Link requires :\n %s\n"
-              (List.map l ~f:(fun (b, a) ->
-                   Printf.sprintf "Root (%s) : closure {%s}\n"
-                     (Lib.name b |> Lib_name.to_string)
-                     (List.map a ~f:(fun lib ->
-                          Lib.name lib |> Lib_name.to_string)
-                     |> String.concat ~sep:","))
-              |> String.concat ~sep:",")
-          ];
-        let _map = Lib.Map.of_list_exn l in
+  let filter_ocamldep link_requires module_deps entry_names_closure =
+    let open Resolve.Memo.O in
+    let* (module_deps, flags), _ = module_deps in
+    let flag_open_present entry_lib_name =
+      let rec help l =
+        match l with
+        | flag :: entry_name :: t ->
+          if
+            String.equal flag "-open"
+            && String.is_prefix ~prefix:entry_lib_name entry_name
+          then true
+          else help (entry_name :: t)
+        | _ -> false
+      in
+      help flags
+    in
+    let dep_names =
+      List.map module_deps ~f:(fun mdep ->
+          let open Module_dep in
+          match mdep with
+          (* Lib shadowing by a local module obliges
+             us to also check if a lib is a local module *)
+          | Local m -> Module.name m |> Module_name.to_string
+          | External mname -> External_name.to_string mname)
+    in
+    ignore dep_names;
+    ignore flag_open_present;
+    ignore link_requires;
+    ignore entry_names_closure;
 
-        List.map l ~f:(fun (_, a) -> a) |> List.concat)
+    let+ requires =
+      Resolve.Memo.bind link_requires ~f:(fun lcs ->
+          Resolve.Memo.List.map lcs ~f:(fun (lib, closure) ->
+              let local_lib = Lib.Local.of_lib lib in
+              if Option.is_none local_lib then
+                Resolve.Memo.return (Some (lib, closure))
+              else
+                let* (em : Module.t list) =
+                  entry_names_closure (Option.value_exn local_lib)
+                  |> Resolve.Memo.lift_memo
+                in
+                let+ closure_names =
+                  Resolve.Memo.List.fold_left closure ~init:[]
+                    ~f:(fun acc libc ->
+                      let local_lib = Lib.Local.of_lib libc in
+                      if Option.is_none local_lib then Resolve.Memo.return []
+                      else
+                        let+ (em : Module.t list) =
+                          entry_names_closure (Option.value_exn local_lib)
+                          |> Resolve.Memo.lift_memo
+                        in
+                        if List.is_empty em then [] else List.append acc em)
+                in
+                if List.is_empty em || List.is_empty closure_names then
+                  Some (lib, closure)
+                else
+                  let module_names = List.append em closure_names in
+                  if
+                    Dune_util.Log.info
+                      [ Pp.textf
+                          "\n\
+                           Gona see for lib %s if dep_names (%s) exits in{ %s}"
+                          (Lib.name lib |> Lib_name.to_string)
+                          (String.concat ~sep:"," dep_names)
+                          (List.map module_names ~f:(fun l ->
+                               Module.name l |> Module_name.to_string)
+                          |> String.concat ~sep:",")
+                      ];
+                    List.exists dep_names ~f:(fun ocamldep_out ->
+                        let ocamldep_out_mn =
+                          Module_name.of_string ocamldep_out
+                        in
+                        List.exists module_names ~f:(fun a ->
+                            let a = Module.name a in
+                            flag_open_present (Module_name.to_string a)
+                            || Module_name.equal a ocamldep_out_mn))
+                  then Some (lib, closure)
+                  else (
+                    Dune_util.Log.info
+                      [ Pp.textf "None for %s"
+                          (Lib.name lib |> Lib_name.to_string)
+                      ];
+                    None)))
+    in
+    List.iter requires ~f:(fun ropt ->
+        match ropt with
+        | Some (lib, clos) ->
+          Dune_util.Log.info
+            [ Pp.textf "Some (lib,clos) = {%s} [%s]"
+                (Lib.name lib |> Lib_name.to_string)
+                (List.map clos ~f:(fun lib ->
+                     Lib.name lib |> Lib_name.to_string)
+                |> String.concat ~sep:",")
+            ]
+        | None -> ());
+
+    let requires = List.filter_opt requires in
+    (*     let+ requires = Lib.uniq_linking_closure link_requires in
+ *)
+    let result =
+      List.fold_left requires ~init:Lib.Set.empty ~f:(fun set (lib, closure) ->
+          let set = Lib.Set.add set lib in
+          let set =
+            List.fold_left closure ~init:set ~f:(fun set lib ->
+                Lib.Set.add set lib)
+          in
+          set)
+    in
+    Lib.Set.to_list result
 
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return [])
@@ -547,12 +641,9 @@ module Includes = struct
     in
     ignore flags;
     let requires =
-      if Dune_project.implicit_transitive_deps project then compile_requires
-      else filter_ocamldep link_requires
-      (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
- *)
-      (* Resolve.Memo.bind direct_requires ~f:(fun requires ->
-          filter_updated requires flags entry_names_closure md) *)
+      if Dune_project.implicit_transitive_deps project then
+        filter_ocamldep link_requires flags entry_names_closure
+      else compile_requires
     in
 
     ignore deps;
@@ -668,7 +759,8 @@ let flags t = t.flags
 
 let requires_compile t = t.requires_compile
 
-let requires_link t = Memo.Lazy.force t.requires_link
+let requires_link t =
+  Memo.Lazy.force t.requires_link |> Lib.uniq_linking_closure
 
 let includes t = t.includes
 

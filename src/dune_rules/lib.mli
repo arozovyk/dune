@@ -257,3 +257,6 @@ module Local : sig
 
   include Comparable_intf.S with type key := t
 end
+
+val uniq_linking_closure :
+  (t * t list) list Resolve.Memo.t -> (t * t list) list Resolve.Memo.t
