@@ -1700,17 +1700,17 @@ let unique_sublists lsts =
 let uniq_linking_closure l =
   Resolve.Memo.map l ~f:(fun a ->
       let cl_l = List.split a in
-      let closures = fst cl_l in
-      let libs = snd cl_l in
+      let closures = snd cl_l in
+      let libs = fst cl_l in
       let r = unique_sublists closures in
-      List.combine r libs)
+      List.combine libs r)
 
 module Compile = struct
   module Resolved_select = Resolved_select
 
   type nonrec t =
     { direct_requires : t list Resolve.Memo.t
-    ; requires_link : (lib list * lib) list Resolve.t Memo.Lazy.t
+    ; requires_link : (lib * lib list) list Resolve.t Memo.Lazy.t
     ; pps : t list Resolve.Memo.t
     ; resolved_selects : Resolved_select.t list Resolve.Memo.t
     ; sub_systems : Sub_system0.Instance.t Memo.Lazy.t Sub_system_name.Map.t
@@ -1737,7 +1737,7 @@ module Compile = struct
               Resolve.Memo.List.map rlist ~f:(fun lib ->
                   Resolve_names.compile_closure_with_overlap_checks db
                     ~forbidden_libraries:Map.empty [ lib ]
-                  |> Resolve.Memo.map ~f:(fun cl -> (cl, lib))))
+                  |> Resolve.Memo.map ~f:(fun cl -> (lib, cl))))
           |> uniq_linking_closure)
     in
 
@@ -1936,7 +1936,7 @@ module DB = struct
                      Resolve_names.linking_closure_with_overlap_checks
                        (Option.some_if (not allow_overlaps) t)
                        ~forbidden_libraries [ lib ]
-                     |> Resolve.Memo.map ~f:(fun cl -> (cl, lib)))))
+                     |> Resolve.Memo.map ~f:(fun cl -> (lib, cl)))))
             ~human_readable_description:(fun () ->
               match targets with
               | `Melange_emit name -> Pp.textf "melange target %s" name

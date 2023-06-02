@@ -157,7 +157,7 @@ include Sub_system.Register_end_point (struct
                Resolve.Memo.map runner_libs ~f:(fun r ->
                    match r with
                    | [] -> []
-                   | h :: _ -> [ (r, h) ])))
+                   | h :: _ -> [ (h, r) ])))
         ~flags ~js_of_ocaml:(Some js_of_ocaml) ~package
     in
     let linkages =

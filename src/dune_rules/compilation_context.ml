@@ -476,6 +476,22 @@ module Includes = struct
                     else true)
               else true)
 
+  let filter_ocamldep link_requires =
+    Resolve.Memo.map link_requires ~f:(fun l ->
+        Dune_util.Log.info
+          [ Pp.textf "Link requires :\n %s\n"
+              (List.map l ~f:(fun (b, a) ->
+                   Printf.sprintf "Root (%s) : closure {%s}\n"
+                     (Lib.name b |> Lib_name.to_string)
+                     (List.map a ~f:(fun lib ->
+                          Lib.name lib |> Lib_name.to_string)
+                     |> String.concat ~sep:","))
+              |> String.concat ~sep:",")
+          ];
+        let _map = Lib.Map.of_list_exn l in
+
+        List.map l ~f:(fun (_, a) -> a) |> List.concat)
+
   let make ?(lib_top_module_map = Resolve.Memo.return [])
       ?(lib_to_entry_modules_map = Resolve.Memo.return [])
       ?(direct_requires = Resolve.Memo.return []) ~link_requires
@@ -532,14 +548,13 @@ module Includes = struct
     ignore flags;
     let requires =
       if Dune_project.implicit_transitive_deps project then compile_requires
-      else
-        Resolve.Memo.map link_requires ~f:(fun l ->
-            List.map l ~f:(fun (a, _) -> a) |> List.concat)
+      else filter_ocamldep link_requires
       (*         Dune_util.Log.info [ Pp.textf "We have direct requires" ];
  *)
       (* Resolve.Memo.bind direct_requires ~f:(fun requires ->
           filter_updated requires flags entry_names_closure md) *)
     in
+
     ignore deps;
     ignore lib_to_entry_modules_map;
     ignore lib_top_module_map;
@@ -619,7 +634,7 @@ type t =
   ; modules : modules
   ; flags : Ocaml_flags.t
   ; requires_compile : Lib.t list Resolve.Memo.t
-  ; requires_link : (Lib.t list * Lib.t) list Resolve.t Memo.Lazy.t
+  ; requires_link : (Lib.t * Lib.t list) list Resolve.t Memo.Lazy.t
   ; includes : md:Module.t -> Includes.t
   ; preprocessing : Pp_spec.t
   ; opaque : bool
@@ -687,7 +702,7 @@ let dep_graphs t = t.modules.dep_graphs
 
 let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~(requires_compile : Lib.t list Resolve.Memo.t)
-    ~(requires_link : (Lib.t list * Lib.t) list Resolve.t Memo.Lazy.t)
+    ~(requires_link : (Lib.t * Lib.t list) list Resolve.t Memo.Lazy.t)
     ?(preprocessing = Pp_spec.dummy) ~opaque ?stdlib ~js_of_ocaml ~package
     ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
     ?(lib_top_module_map = Resolve.Memo.return [])
@@ -700,7 +715,7 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     if Dune_project.implicit_transitive_deps project then
       Memo.Lazy.force requires_link
       |> Resolve.Memo.map ~f:(fun l ->
-             List.map l ~f:(fun (a, _) -> a) |> List.concat)
+             List.map l ~f:(fun (_, a) -> a) |> List.concat)
     else requires_compile
   in
   let sandbox =
@@ -844,7 +859,7 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   in
   let dep_graphs = Ml_kind.Dict.make ~intf:dummy ~impl:dummy in
   let requires_link =
-    Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> ([], r)))
+    Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> (r, [])))
   in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
@@ -868,7 +883,7 @@ let for_plugin_executable t ~embed_in_plugin_libraries =
     Memo.lazy_ (fun () ->
         Resolve.Memo.List.map
           ~f:(fun l ->
-            Lib.DB.resolve libs l |> Resolve.Memo.map ~f:(fun l -> ([], l)))
+            Lib.DB.resolve libs l |> Resolve.Memo.map ~f:(fun l -> (l, [])))
           embed_in_plugin_libraries)
   in
   { t with requires_link }

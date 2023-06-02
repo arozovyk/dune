@@ -330,7 +330,7 @@ let build_ppx_driver sctx ~scope ~target ~pps ~pp_names =
                ~f:(fun r ->
                  match r with
                  | [] -> []
-                 | h :: _ -> [ (r, h) ])
+                 | h :: _ -> [ (h, r) ])
                requires_compile))
     in
     let flags = Ocaml_flags.of_list [ "-g"; "-w"; "-24" ] in
