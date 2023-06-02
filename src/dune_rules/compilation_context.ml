@@ -536,10 +536,10 @@ module Includes = struct
                 let+ closure_names =
                   Resolve.Memo.List.fold_left closure ~init:[]
                     ~f:(fun acc libc ->
-                      if not_filtrable libc then Resolve.Memo.return []
+                      if not_filtrable libc then Resolve.Memo.return acc
                       else
                         let local_lib = Lib.Local.of_lib libc in
-                        if Option.is_none local_lib then Resolve.Memo.return []
+                        if Option.is_none local_lib then Resolve.Memo.return acc
                         else
                           let+ (em : Module.t list) =
                             entry_names_closure (Option.value_exn local_lib)
@@ -556,7 +556,7 @@ module Includes = struct
                                      Module.name l |> Module_name.to_string)
                                 |> String.concat ~sep:",")
                             ];
-                          if List.is_empty em then [] else List.append acc em)
+                          List.append acc em)
                 in
 
                 if List.is_empty em || List.is_empty closure_names then
@@ -579,11 +579,13 @@ module Includes = struct
                           let ocamldep_out_mn =
                             Module_name.of_string ocamldep_out
                           in
+
                           List.exists module_names ~f:(fun a ->
                               let a = Module.name a in
                               flag_open_present (Module_name.to_string a)
                               || Module_name.equal a ocamldep_out_mn))
                     in
+
                     ocamldep_output_exists_in_module_names
                   then Some (lib, closure)
                   else (
