@@ -617,18 +617,21 @@ module Includes = struct
                     then Some (lib, closure)
                     else (
                       Dune_util.Log.info
+                        [ Pp.textf "\n\n%s\nn"
+                            (List.map module_names ~f:(fun l ->
+                                 " RMV "
+                                 ^ (Module.name l |> Module_name.to_string))
+                            |> String.concat ~sep:",\n")
+                        ];
+                      Dune_util.Log.info
                         [ Pp.textf
                             "Removing lib %s for module %s\n\
-                             Entry modules of lib : {%s} closure names of it \
-                             [%s] ocamldeps names (%s)\n\n"
+                             Modules [%s] ocamldeps names (%s)\n\n"
                             (Lib.name lib |> Lib_name.to_string)
                             (Module.name md |> Module_name.to_string)
-                            (List.map em ~f:(fun l ->
-                                 Module.name l |> Module_name.to_string)
+                            (List.map module_names ~f:(fun l ->
+                                   (Module.name l |> Module_name.to_string))
                             |> String.concat ~sep:",")
-                            (List.map closure_names ~f:(fun l ->
-                                 Module.name l |> Module_name.to_string)
-                            |> String.concat ~sep:";")
                             (String.concat dep_names ~sep:",")
                         ];
                       None)))
