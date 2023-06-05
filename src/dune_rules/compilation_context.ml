@@ -490,7 +490,6 @@ module Includes = struct
           set)
       |> Lib.Set.to_list
     in
-
     let flag_open_present entry_lib_name =
       let rec help l =
         match l with
@@ -547,13 +546,6 @@ module Includes = struct
                     entry_names_closure (Option.value_exn local_lib)
                     |> Resolve.Memo.lift_memo
                   in
-                  Dune_util.Log.info
-                    [ Pp.textf "Entry names of %s %s"
-                        (Lib.name lib |> Lib_name.to_string)
-                        (List.map em ~f:(fun l ->
-                             Module.name l |> Module_name.to_string)
-                        |> String.concat ~sep:",")
-                    ];
                   let+ closure_names =
                     Resolve.Memo.List.fold_left closure ~init:[]
                       ~f:(fun acc libc ->
@@ -601,18 +593,18 @@ module Includes = struct
                             let ocamldep_out_mn =
                               Module_name.of_string ocamldep_out
                             in
-
-                            List.exists module_names ~f:(fun a ->
-                                let a = Module.name a in
-                                let is_melange_wrapper =
-                                  String.equal "Melange_wrapper"
-                                    (Module_name.to_string a)
-                                in
-                                is_melange_wrapper
-                                || flag_open_present (Module_name.to_string a)
-                                || Module_name.equal a ocamldep_out_mn))
+                            flag_open_present ocamldep_out
+                            || List.exists module_names ~f:(fun a ->
+                                   let a = Module.name a in
+                                   let is_melange_wrapper =
+                                     String.equal "Melange_wrapper"
+                                       (Module_name.to_string a)
+                                   in
+                                   is_melange_wrapper
+                                   || flag_open_present
+                                        (Module_name.to_string a)
+                                   || Module_name.equal a ocamldep_out_mn))
                       in
-
                       ocamldep_output_exists_in_module_names
                     then Some (lib, closure)
                     else (
@@ -635,18 +627,6 @@ module Includes = struct
                         ];
                       None)))
       in
-
-      (* List.iter requires ~f:(fun ropt ->
-          match ropt with
-          | Some (lib, clos) ->
-            Dune_util.Log.info
-              [ Pp.textf "Some (lib,clos) = {%s} [%s]"
-                  (Lib.name lib |> Lib_name.to_string)
-                  (List.map clos ~f:(fun lib ->
-                       Lib.name lib |> Lib_name.to_string)
-                  |> String.concat ~sep:",")
-              ]
-          | None -> ()); *)
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
 
@@ -655,6 +635,7 @@ module Includes = struct
       ?(direct_requires = Resolve.Memo.return []) ~link_requires
       ~compile_requires ?(entry_names_closure = fun _ -> Memo.return []) ()
       ~project ~opaque ~md ~dep_graphs ~flags =
+    Dune_util.Log.info [ Pp.textf "Make " ];
     ignore direct_requires;
     ignore link_requires;
     ignore entry_names_closure;
