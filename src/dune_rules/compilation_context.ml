@@ -590,20 +590,20 @@ module Includes = struct
                          ]; *)
                       let ocamldep_output_exists_in_module_names =
                         List.exists dep_names ~f:(fun ocamldep_out ->
-                            let ocamldep_out_mn =
-                              Module_name.of_string ocamldep_out
-                            in
                             flag_open_present ocamldep_out
-                            || List.exists module_names ~f:(fun a ->
-                                   let a = Module.name a in
+                            || List.exists module_names ~f:(fun e_module_name ->
+                                   let e_module_name =
+                                     Module.name e_module_name
+                                     |> Module_name.to_string
+                                   in
                                    let is_melange_wrapper =
                                      String.equal "Melange_wrapper"
-                                       (Module_name.to_string a)
+                                       e_module_name
                                    in
                                    is_melange_wrapper
-                                   || flag_open_present
-                                        (Module_name.to_string a)
-                                   || Module_name.equal a ocamldep_out_mn))
+                                   || flag_open_present e_module_name
+                                   || String.is_prefix ~prefix:ocamldep_out
+                                        e_module_name))
                       in
                       ocamldep_output_exists_in_module_names
                     then Some (lib, closure)
