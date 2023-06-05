@@ -618,9 +618,8 @@ module Includes = struct
                     else (
                       Dune_util.Log.info
                         [ Pp.textf "\n\n%s\nn"
-                            (List.map module_names ~f:(fun l ->
-                                 " RMV "
-                                 ^ (Module.name l |> Module_name.to_string))
+                            (List.map closure ~f:(fun l ->
+                                 " RMV " ^ (Lib.name l |> Lib_name.to_string))
                             |> String.concat ~sep:",\n")
                         ];
                       Dune_util.Log.info
@@ -630,7 +629,7 @@ module Includes = struct
                             (Lib.name lib |> Lib_name.to_string)
                             (Module.name md |> Module_name.to_string)
                             (List.map module_names ~f:(fun l ->
-                                   (Module.name l |> Module_name.to_string))
+                                 Module.name l |> Module_name.to_string)
                             |> String.concat ~sep:",")
                             (String.concat dep_names ~sep:",")
                         ];
