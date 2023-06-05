@@ -559,17 +559,17 @@ module Includes = struct
                               entry_names_closure (Option.value_exn local_lib)
                               |> Resolve.Memo.lift_memo
                             in
-                            Dune_util.Log.info
-                              [ Pp.textf
-                                  "(Module:%s)Closure of (%s) gave lib (%s) \
-                                   having entry names: (%s)\n"
-                                  (Module.name md |> Module_name.to_string)
-                                  (Lib.name lib |> Lib_name.to_string)
-                                  (Lib.name libc |> Lib_name.to_string)
-                                  (List.map em ~f:(fun l ->
-                                       Module.name l |> Module_name.to_string)
-                                  |> String.concat ~sep:",")
-                              ];
+                            (* Dune_util.Log.info
+                               [ Pp.textf
+                                   "(Module:%s)Closure of (%s) gave lib (%s) \
+                                    having entry names: (%s)\n"
+                                   (Module.name md |> Module_name.to_string)
+                                   (Lib.name lib |> Lib_name.to_string)
+                                   (Lib.name libc |> Lib_name.to_string)
+                                   (List.map em ~f:(fun l ->
+                                        Module.name l |> Module_name.to_string)
+                                   |> String.concat ~sep:",")
+                               ]; *)
                             List.append acc em)
                   in
 
@@ -591,10 +591,15 @@ module Includes = struct
                       let ocamldep_output_exists_in_module_names =
                         List.exists dep_names ~f:(fun ocamldep_out ->
                             flag_open_present ocamldep_out
-                            || List.exists module_names ~f:(fun e_module_name ->
+                            || List.exists module_names ~f:(fun md ->
+                                   Dune_util.Log.info
+                                     [ Pp.textf "\nModule %s\nDyn: %s"
+                                         (Module.name md
+                                        |> Module_name.to_string)
+                                         (Module.to_dyn md |> Dyn.to_string)
+                                     ];
                                    let e_module_name =
-                                     Module.name e_module_name
-                                     |> Module_name.to_string
+                                     Module.name md |> Module_name.to_string
                                    in
                                    let is_melange_wrapper =
                                      String.equal "Melange_wrapper"
@@ -609,21 +614,27 @@ module Includes = struct
                     then Some (lib, closure)
                     else (
                       Dune_util.Log.info
-                        [ Pp.textf "\n\n%s\nn"
+                        [ Pp.textf "\n\n%s\n "
                             (List.map closure ~f:(fun l ->
                                  " RMV " ^ (Lib.name l |> Lib_name.to_string))
                             |> String.concat ~sep:",\n")
                         ];
+
                       Dune_util.Log.info
                         [ Pp.textf
-                            "Removing lib %s for module %s\n\
-                             Modules [%s] ocamldeps names (%s)\n\n"
+                            "Removing Lib {%s} for module %s\n\
+                             Entry_names [%s] \n\
+                             Ocamldeps names (%s)\n\n\
+                            \ \n\
+                            \                             Flags [%s]\n\
+                            \ "
                             (Lib.name lib |> Lib_name.to_string)
                             (Module.name md |> Module_name.to_string)
                             (List.map module_names ~f:(fun l ->
                                  Module.name l |> Module_name.to_string)
                             |> String.concat ~sep:",")
                             (String.concat dep_names ~sep:",")
+                            (String.concat flags ~sep:",")
                         ];
                       None)))
       in
@@ -635,7 +646,6 @@ module Includes = struct
       ?(direct_requires = Resolve.Memo.return []) ~link_requires
       ~compile_requires ?(entry_names_closure = fun _ -> Memo.return []) ()
       ~project ~opaque ~md ~dep_graphs ~flags =
-    Dune_util.Log.info [ Pp.textf "Make " ];
     ignore direct_requires;
     ignore link_requires;
     ignore entry_names_closure;
