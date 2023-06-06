@@ -512,6 +512,7 @@ module Includes = struct
       || String.is_prefix md_name ~prefix:"Ez"
       || String.is_prefix md_name ~prefix:"Merlin_recovery"
       || String.is_prefix md_name ~prefix:"Ocaml_util"
+      || String.is_prefix md_name ~prefix:"To_ocaml"
     then
       let+ res = combine link_requires in
       res
@@ -570,7 +571,7 @@ module Includes = struct
                                 entry_names_closure (Option.value_exn local_lib)
                                 |> Resolve.Memo.lift_memo
                               in
-                              Dune_util.Log.info
+                             (*  Dune_util.Log.info
                                 [ Pp.textf
                                     "(Module:%s)Closure of (%s) gave lib (%s) \
                                      having entry names: (%s)\n"
@@ -580,7 +581,7 @@ module Includes = struct
                                     (List.map em ~f:(fun l ->
                                          Module.name l |> Module_name.to_string)
                                     |> String.concat ~sep:",")
-                                ];
+                                ]; *)
                               List.append acc em)
                     in
 
@@ -621,25 +622,25 @@ module Includes = struct
                         in
                         ocamldep_output_exists_in_module_names
                       then Some (lib, closure)
-                      else (
-                        Dune_util.Log.info
-                          [ Pp.textf "\n\n%s\nn"
-                              (List.map closure ~f:(fun l ->
-                                   " RMV " ^ (Lib.name l |> Lib_name.to_string))
-                              |> String.concat ~sep:",\n")
-                          ];
-                        Dune_util.Log.info
-                          [ Pp.textf
-                              "Removing lib %s for module %s\n\
-                               Modules [%s] ocamldeps names (%s)\n\n"
-                              lib_pubname
-                              (Module.name md |> Module_name.to_string)
-                              (List.map module_names ~f:(fun l ->
-                                   Module.name l |> Module_name.to_string)
-                              |> String.concat ~sep:",")
-                              (String.concat dep_names ~sep:",")
-                          ];
-                        None)))
+                      else
+                        (* Dune_util.Log.info
+                             [ Pp.textf "\n\n%s\nn"
+                                 (List.map closure ~f:(fun l ->
+                                      " RMV " ^ (Lib.name l |> Lib_name.to_string))
+                                 |> String.concat ~sep:",\n")
+                             ];
+                           Dune_util.Log.info
+                             [ Pp.textf
+                                 "Removing lib %s for module %s\n\
+                                  Modules [%s] ocamldeps names (%s)\n\n"
+                                 lib_pubname
+                                 (Module.name md |> Module_name.to_string)
+                                 (List.map module_names ~f:(fun l ->
+                                      Module.name l |> Module_name.to_string)
+                                 |> String.concat ~sep:",")
+                                 (String.concat dep_names ~sep:",")
+                             ]; *)
+                        None))
       in
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
