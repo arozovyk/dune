@@ -88,7 +88,6 @@ let melange_args (cctx : Compilation_context.t) (cm_kind : Lib_mode.Cm_kind.t)
 
 let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
     ~(phase : Fdo.phase option) =
-  Dune_util.Log.info [ Pp.textf "Build_cm\n" ];
   if force_write_cmi && precompiled_cmi then
     Code_error.raise "force_read_cmi and precompiled_cmi are mutually exclusive"
       [];
@@ -262,6 +261,7 @@ let build_cm cctx ~force_write_cmi ~precompiled_cmi ~cm_kind (m : Module.t)
           ; As extra_args
           ; S (melange_args cctx cm_kind m)
           ; A "-no-alias-deps"
+          ; A "-dtimings"
           ; opaque_arg
           ; As (Fdo.phase_flags phase)
           ; opens
