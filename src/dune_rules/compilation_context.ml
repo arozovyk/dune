@@ -146,12 +146,12 @@ module Includes = struct
                         ocamldep_output_exists_in_module_names
                       then Some (lib, closure)
                       else (
-                        Dune_util.Log.info
-                          [ Pp.textf "\n\n%s\nn"
-                              (List.map closure ~f:(fun l ->
-                                   " RMV " ^ (Lib.name l |> Lib_name.to_string))
-                              |> String.concat ~sep:",\n")
-                          ];
+                        (* Dune_util.Log.info
+                           [ Pp.textf "\n\n%s\nn"
+                               (List.map closure ~f:(fun l ->
+                                    " RMV " ^ (Lib.name l |> Lib_name.to_string))
+                               |> String.concat ~sep:",\n")
+                           ]; *)
                         Dune_util.Log.info
                           [ Pp.textf
                               "Removing lib %s for module %s\n\
@@ -420,7 +420,9 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ; stdlib
     }
   in
-  let+ dep_graphs = Dep_rules.rules ocamldep_modules_data
+  let+ dep_graphs =
+    Dep_rules.rules ocamldep_modules_data
+      ~implicit_transitive_deps:(Dune_project.implicit_transitive_deps project)
   and+ bin_annot =
     match bin_annot with
     | Some b -> Memo.return b
