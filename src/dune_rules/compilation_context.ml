@@ -168,9 +168,7 @@ module Includes = struct
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
 
-  let make ?(lib_top_module_map = Resolve.Memo.return [])
-      ?(lib_to_entry_modules_map = Resolve.Memo.return [])
-      ?(direct_requires = Resolve.Memo.return []) ~link_requires
+  let make ?(direct_requires = Resolve.Memo.return []) ~link_requires
       ~compile_requires ?(entry_names_closure = fun _ -> Memo.return []) ()
       ~project ~opaque ~md ~dep_graphs ~flags =
     ignore direct_requires;
@@ -229,16 +227,11 @@ module Includes = struct
     in
 
     ignore deps;
-    ignore lib_to_entry_modules_map;
-    ignore lib_top_module_map;
+
     let make_includes_args ~mode groups =
       Command.Args.memo
         (Resolve.Memo.args
            (let+ libs = requires in
-            (* let+ libs =
-                 filter_with_odeps libs deps md lib_top_module_map
-                   lib_to_entry_modules_map
-               in *)
             Command.Args.S
               [ iflags libs mode
               ; Hidden_deps (Lib_file_deps.deps libs ~groups)
@@ -249,10 +242,6 @@ module Includes = struct
       Command.Args.memo
         (Resolve.Memo.args
            (let+ libs = requires in
-            (* let+ libs =
-                 filter_with_odeps libs deps md lib_top_module_map
-                   lib_to_entry_modules_map
-               in *)
             Command.Args.S
               [ iflags libs (Ocaml Native)
               ; Hidden_deps
@@ -379,8 +368,6 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~(requires_link : (Lib.t * Lib.t list) list Resolve.t Memo.Lazy.t)
     ?(preprocessing = Pp_spec.dummy) ~opaque ?stdlib ~js_of_ocaml ~package
     ?public_lib_name ?vimpl ?modes ?bin_annot ?loc
-    ?(lib_top_module_map = Resolve.Memo.return [])
-    ?(lib_to_entry_modules_map = Resolve.Memo.return [])
     ?(entry_names_closure = fun _ -> Memo.return []) () =
   let open Memo.O in
   let project = Scope.project scope in
@@ -432,9 +419,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
   let includes =
     Includes.make ~project ~opaque ~dep_graphs
       ~link_requires:(Memo.Lazy.force requires_link)
-      ~compile_requires:requires_compile ~lib_top_module_map
-      ~lib_to_entry_modules_map ~direct_requires:requires_compile ~flags
-      ~entry_names_closure ()
+      ~compile_requires:requires_compile ~direct_requires:requires_compile
+      ~flags ~entry_names_closure ()
   in
   { super_context
   ; scope
