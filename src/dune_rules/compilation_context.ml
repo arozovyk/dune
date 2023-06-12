@@ -10,11 +10,11 @@ module Includes = struct
     let combine lr =
       let+ requires = Lib.uniq_linking_closure lr in
       List.fold_left requires ~init:Lib.Set.empty ~f:(fun set (lib, closure) ->
-          Dune_util.Log.info
+          (* Dune_util.Log.info
             [ Pp.textf "combine %s %d"
                 (Lib.name lib |> Lib_name.to_string)
                 (List.length closure)
-            ];
+            ]; *)
           let set = Lib.Set.add set lib in
           List.fold_left closure ~init:set ~f:(fun set lib ->
               Lib.Set.add set lib))
@@ -164,7 +164,7 @@ module Includes = struct
                                   " RMV " ^ (Lib.name l |> Lib_name.to_string))
                              |> String.concat ~sep:",\n")
                          ]; *)
-                      Dune_util.Log.info
+                      (* Dune_util.Log.info
                         [ Pp.textf
                             "Removing lib %s for module %s\n\
                              Modules [%s] ocamldeps names (%s)\n\n"
@@ -174,7 +174,7 @@ module Includes = struct
                                  Module.name l |> Module_name.to_string)
                             |> String.concat ~sep:",")
                             (String.concat dep_names ~sep:",")
-                        ];
+                        ]; *)
                       None)))
       in
       let requires = List.filter_opt requires in
@@ -356,8 +356,8 @@ let open_flag_present_memo flags =
     ~input:(module String)
     (fun entry_lib_name ->
       let flag_open_present =
-        Dune_util.Log.info [ Pp.textf "flagpres %s" entry_lib_name ];
-        let rec help l =
+(*         Dune_util.Log.info [ Pp.textf "flagpres %s" entry_lib_name ];
+ *)        let rec help l =
           match l with
           | flag :: entry_name :: t ->
             if
