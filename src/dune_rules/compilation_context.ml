@@ -17,9 +17,11 @@ module Includes = struct
           set)
       |> Lib.Set.to_list
     in
+    let open_present = List.exists flags ~f:(fun f -> String.equal f "-open") in
     let flag_open_present entry_lib_name =
       let rec help l =
         match l with
+        | [] -> false
         | flag :: entry_name :: t ->
           if
             String.equal flag "-open"
@@ -28,11 +30,11 @@ module Includes = struct
           else help (entry_name :: t)
         | _ -> false
       in
-      help flags
+      open_present && help flags
     in
     let md_name = Module.name md |> Module_name.to_string in
     if
-      (* FIXME: menhir mocks (i.e melange-compiler-libs.0.0.1-414) ? we skip for now  *)
+      (* FIXME: edge cases that are yet to be identified *)
       String.is_suffix md_name ~suffix:"__mock"
       || String.is_prefix md_name ~prefix:"Utils"
       || String.is_prefix md_name ~prefix:"Lwt"
@@ -94,17 +96,6 @@ module Includes = struct
                                 entry_names_closure (Option.value_exn local_lib)
                                 |> Resolve.Memo.lift_memo
                               in
-                              (* Dune_util.Log.info
-                                 [ Pp.textf
-                                     "(Module:%s)Closure of (%s) gave lib (%s) \
-                                      having entry names: (%s)\n"
-                                     (Module.name md |> Module_name.to_string)
-                                     lib_pubname
-                                     (Lib.name libc |> Lib_name.to_string)
-                                     (List.map em ~f:(fun l ->
-                                          Module.name l |> Module_name.to_string)
-                                     |> String.concat ~sep:",")
-                                 ]; *)
                               List.append acc em)
                     in
 
@@ -113,57 +104,25 @@ module Includes = struct
                     else
                       let module_names = List.append em closure_names in
                       if
-                        (* Dune_util.Log.info
-                           [ Pp.textf
-                               "\n\
-                                Gona see for lib %s if dep_names (%s) exits in{ %s}"
-                              lib_pubname
-                               (String.concat ~sep:"," dep_names)
-                               (List.map module_names ~f:(fun l ->
-                                    Module.name l |> Module_name.to_string)
-                               |> String.concat ~sep:",")
-                           ]; *)
-                        let ocamldep_output_exists_in_module_names =
-                          List.exists dep_names ~f:(fun ocamldep_out ->
-                              flag_open_present ocamldep_out
-                              || List.exists module_names
-                                   ~f:(fun e_module_name ->
-                                     let e_module_name =
-                                       Module.name e_module_name
-                                       |> Module_name.to_string
-                                     in
-                                     let is_melange_wrapper =
-                                       String.equal "Melange_wrapper"
-                                         e_module_name
-                                     in
-                                     is_melange_wrapper
-                                     || flag_open_present e_module_name
-                                     || String.is_prefix ~prefix:ocamldep_out
-                                          e_module_name
-                                     || String.is_prefix ~prefix:e_module_name
-                                          ocamldep_out))
-                        in
-                        ocamldep_output_exists_in_module_names
+                        List.exists dep_names ~f:(fun ocamldep_out ->
+                            flag_open_present ocamldep_out
+                            || List.exists module_names ~f:(fun e_module_name ->
+                                   let e_module_name =
+                                     Module.name e_module_name
+                                     |> Module_name.to_string
+                                   in
+                                   let is_melange_wrapper =
+                                     String.equal "Melange_wrapper"
+                                       e_module_name
+                                   in
+                                   is_melange_wrapper
+                                   || flag_open_present e_module_name
+                                   || String.is_prefix ~prefix:ocamldep_out
+                                        e_module_name
+                                   || String.is_prefix ~prefix:e_module_name
+                                        ocamldep_out))
                       then Some (lib, closure)
-                      else (
-                        (* Dune_util.Log.info
-                           [ Pp.textf "\n\n%s\nn"
-                               (List.map closure ~f:(fun l ->
-                                    " RMV " ^ (Lib.name l |> Lib_name.to_string))
-                               |> String.concat ~sep:",\n")
-                           ]; *)
-                        Dune_util.Log.info
-                          [ Pp.textf
-                              "Removing lib %s for module %s\n\
-                               Modules [%s] ocamldeps names (%s)\n\n"
-                              lib_pubname
-                              (Module.name md |> Module_name.to_string)
-                              (List.map module_names ~f:(fun l ->
-                                   Module.name l |> Module_name.to_string)
-                              |> String.concat ~sep:",")
-                              (String.concat dep_names ~sep:",")
-                          ];
-                        None)))
+                      else None))
       in
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
@@ -194,7 +153,6 @@ module Includes = struct
         Action_builder.map2 module_deps_impl module_deps_intf
           ~f:(fun inft impl -> List.append inft impl)
       in
-
       let cmb_flags =
         Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
       in
