@@ -5,31 +5,35 @@ module Includes = struct
 
   let filter_ocamldep link_requires module_deps entry_names_closure md =
     let open Resolve.Memo.O in
-    let* (module_deps, flags), _ = module_deps in
+    let* module_deps, _ = module_deps in
     let combine lr =
       let+ requires = Lib.uniq_linking_closure lr in
       List.fold_left requires ~init:Lib.Set.empty ~f:(fun set (lib, closure) ->
+          Dune_util.Log.info
+            [ Pp.textf "combine %s %d"
+                (Lib.name lib |> Lib_name.to_string)
+                (List.length closure)
+            ];
           let set = Lib.Set.add set lib in
-          let set =
-            List.fold_left closure ~init:set ~f:(fun set lib ->
-                Lib.Set.add set lib)
-          in
-          set)
+          List.fold_left closure ~init:set ~f:(fun set lib ->
+              Lib.Set.add set lib))
       |> Lib.Set.to_list
     in
-    let flag_open_present entry_lib_name =
-      let rec help l =
-        match l with
-        | flag :: entry_name :: t ->
-          if
-            String.equal flag "-open"
-            && String.is_prefix ~prefix:entry_lib_name entry_name
-          then true
-          else help (entry_name :: t)
-        | _ -> false
-      in
-      help flags
-    in
+
+    (* let flag_open_present entry_lib_name =
+         Dune_util.Log.info [ Pp.textf "flagpres %s " entry_lib_name ];
+         let rec help l =
+           match l with
+           | flag :: entry_name :: t ->
+             if
+               String.equal flag "-open"
+               && String.is_prefix ~prefix:entry_lib_name entry_name
+             then true
+             else help (entry_name :: t)
+           | _ -> false
+         in
+         help flags
+       in *)
     let md_name = Module.name md |> Module_name.to_string in
     if
       (* FIXME: menhir mocks (i.e melange-compiler-libs.0.0.1-414) ? we skip for now  *)
@@ -170,18 +174,7 @@ module Includes = struct
 
   let make ~requires_link ~requires_compile
       ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque ~md
-      ~dep_graphs ~flags =
-    ignore entry_names_closure;
-    let flags =
-      Action_builder.map2
-        (Action_builder.map2
-           (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
-           (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
-           ~f:List.append)
-        (Ocaml_flags.get flags Lib_mode.Melange)
-        ~f:List.append
-    in
-
+      ~dep_graphs ~open_flag_present =
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
@@ -194,37 +187,14 @@ module Includes = struct
         Action_builder.map2 module_deps_impl module_deps_intf
           ~f:(fun inft impl -> List.append inft impl)
       in
-
-      let cmb_flags =
-        Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
-      in
-      Action_builder.run cmb_flags Action_builder.Eager
+      Action_builder.run cmb_itf_impl Action_builder.Eager
       |> Resolve.Memo.lift_memo
     in
-    let flags =
-      let dep_graph_impl = Ml_kind.Dict.get dep_graphs Ml_kind.Impl in
-      let dep_graph_intf = Ml_kind.Dict.get dep_graphs Ml_kind.Intf in
-      let module_deps_impl = Dep_graph.deps_of dep_graph_impl md in
-      let module_deps_intf = Dep_graph.deps_of dep_graph_intf md in
-      let cmb_itf_impl =
-        Action_builder.map2 module_deps_impl module_deps_intf
-          ~f:(fun inft impl -> List.append inft impl)
-      in
-
-      let cmb_flags =
-        Action_builder.map2 cmb_itf_impl flags ~f:(fun mods map -> (mods, map))
-      in
-      Action_builder.run cmb_flags Action_builder.Eager
-      |> Resolve.Memo.lift_memo
-    in
-    ignore flags;
     let requires =
       if Dune_project.implicit_transitive_deps project then
-        filter_ocamldep requires_link flags entry_names_closure md
+        filter_ocamldep requires_link deps entry_names_closure md
       else requires_compile
     in
-
-    ignore deps;
 
     let make_includes_args ~mode groups =
       Command.Args.memo
@@ -361,6 +331,36 @@ let ocamldep_modules_data t = t.ocamldep_modules_data
 
 let dep_graphs t = t.modules.dep_graphs
 
+let open_flag_present_memo flags =
+  let open Memo.O in
+  let flags' =
+    Action_builder.map2
+      (Action_builder.map2
+         (Ocaml_flags.get flags (Lib_mode.Ocaml Byte))
+         (Ocaml_flags.get flags (Lib_mode.Ocaml Native))
+         ~f:List.append)
+      (Ocaml_flags.get flags Lib_mode.Melange)
+      ~f:List.append
+  in
+  let+ flags', _ = Action_builder.run flags' Eager in
+  Memo.create "flag_present_memo"
+    ~input:(module String)
+    (fun entry_lib_name ->
+      let flag_open_present =
+        let rec help l =
+          match l with
+          | flag :: entry_name :: t ->
+            if
+              String.equal flag "-open"
+              && String.is_prefix ~prefix:entry_lib_name entry_name
+            then true
+            else help (entry_name :: t)
+          | _ -> false
+        in
+        help flags'
+      in
+      Memo.return flag_open_present)
+
 let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     ~(requires_compile : Lib.t list Resolve.Memo.t)
     ~(requires_link : (Lib.t * Lib.t list) list Resolve.t Memo.Lazy.t)
@@ -413,11 +413,11 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
     | Some b -> Memo.return b
     | None -> Super_context.bin_annot super_context ~dir:(Obj_dir.dir obj_dir)
   in
-
+  let+ open_flag_present = open_flag_present_memo flags in
   let includes =
     Includes.make ~project ~opaque ~dep_graphs
       ~requires_link:(Memo.Lazy.force requires_link)
-      ~requires_compile ~flags ~entry_names_closure ()
+      ~requires_compile ~entry_names_closure ~open_flag_present ()
   in
   { super_context
   ; scope
@@ -520,9 +520,12 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   let requires_link =
     Resolve.Memo.map requires ~f:(List.map ~f:(fun r -> (r, [])))
   in
+
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~requires_link ~requires_compile:requires ~flags ()
+      ~requires_link ~requires_compile:requires
+      ~open_flag_present:(fun _ -> false (* FIXME *))
+      ()
   in
   { cctx with
     opaque
