@@ -168,11 +168,9 @@ module Includes = struct
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
 
-  let make ?(direct_requires = Resolve.Memo.return []) ~link_requires
-      ~compile_requires ?(entry_names_closure = fun _ -> Memo.return []) ()
-      ~project ~opaque ~md ~dep_graphs ~flags =
-    ignore direct_requires;
-    ignore link_requires;
+  let make ~requires_link ~requires_compile
+      ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque ~md
+      ~dep_graphs ~flags =
     ignore entry_names_closure;
     let flags =
       Action_builder.map2
@@ -222,8 +220,8 @@ module Includes = struct
     ignore flags;
     let requires =
       if Dune_project.implicit_transitive_deps project then
-        filter_ocamldep link_requires flags entry_names_closure md
-      else compile_requires
+        filter_ocamldep requires_link flags entry_names_closure md
+      else requires_compile
     in
 
     ignore deps;
@@ -418,9 +416,8 @@ let create ~super_context ~scope ~expander ~obj_dir ~modules ~flags
 
   let includes =
     Includes.make ~project ~opaque ~dep_graphs
-      ~link_requires:(Memo.Lazy.force requires_link)
-      ~compile_requires:requires_compile ~direct_requires:requires_compile
-      ~flags ~entry_names_closure ()
+      ~requires_link:(Memo.Lazy.force requires_link)
+      ~requires_compile ~flags ~entry_names_closure ()
   in
   { super_context
   ; scope
@@ -525,7 +522,7 @@ let for_module_generated_at_link_time cctx ~requires ~module_ =
   in
   let includes =
     Includes.make ~dep_graphs ~project:(Scope.project cctx.scope) ~opaque
-      ~link_requires:requires_link ~compile_requires:requires ~flags ()
+      ~requires_link ~requires_compile:requires ~flags ()
   in
   { cctx with
     opaque
