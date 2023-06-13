@@ -67,61 +67,51 @@ module Includes = struct
       let* requires =
         Resolve.Memo.bind link_requires ~f:(fun lcs ->
             Resolve.Memo.List.map lcs ~f:(fun (lib, closure) ->
-                let lib_pubname = Lib.name lib |> Lib_name.to_string in
-                if
-                  String.is_prefix ~prefix:"ppxlib" lib_pubname
-                  || String.is_prefix ~prefix:"containers" lib_pubname
-                  || String.is_prefix ~prefix:"lwt" lib_pubname
-                then Resolve.Memo.return (Some (lib, closure))
+                let local_lib = Lib.Local.of_lib lib in
+                if Option.is_none local_lib || not_filtrable lib then
+                  Resolve.Memo.return (Some (lib, closure))
                 else
-                  let local_lib = Lib.Local.of_lib lib in
-                  if Option.is_none local_lib || not_filtrable lib then
-                    Resolve.Memo.return (Some (lib, closure))
-                  else
-                    let* (em : Module.t list) =
-                      entry_names_closure (Option.value_exn local_lib)
-                      |> Resolve.Memo.lift_memo
-                    in
-                    let+ closure_names =
-                      Resolve.Memo.List.fold_left closure ~init:[]
-                        ~f:(fun acc libc ->
-                          if not_filtrable libc then Resolve.Memo.return acc
+                  let* (em : Module.t list) =
+                    entry_names_closure (Option.value_exn local_lib)
+                    |> Resolve.Memo.lift_memo
+                  in
+                  let+ closure_names =
+                    Resolve.Memo.List.fold_left closure ~init:[]
+                      ~f:(fun acc libc ->
+                        if not_filtrable libc then Resolve.Memo.return acc
+                        else
+                          let local_lib = Lib.Local.of_lib libc in
+                          if Option.is_none local_lib then
+                            Resolve.Memo.return acc
                           else
-                            let local_lib = Lib.Local.of_lib libc in
-                            if Option.is_none local_lib then
-                              Resolve.Memo.return acc
-                            else
-                              let+ (em : Module.t list) =
-                                entry_names_closure (Option.value_exn local_lib)
-                                |> Resolve.Memo.lift_memo
+                            let+ (em : Module.t list) =
+                              entry_names_closure (Option.value_exn local_lib)
+                              |> Resolve.Memo.lift_memo
+                            in
+                            List.append acc em)
+                  in
+                  if List.is_empty em || List.is_empty closure_names then
+                    Some (lib, closure)
+                  else
+                    let module_names = List.append em closure_names in
+                    if
+                      List.exists dep_names ~f:(fun ocamldep_out ->
+                          List.exists module_names ~f:(fun e_module_name ->
+                              let e_module_name =
+                                Module.name e_module_name
+                                |> Module_name.to_string
                               in
-                              List.append acc em)
-                    in
-
-                    if List.is_empty em || List.is_empty closure_names then
-                      Some (lib, closure)
-                    else
-                      let module_names = List.append em closure_names in
-                      if
-                        List.exists dep_names ~f:(fun ocamldep_out ->
-                            flag_open_present ocamldep_out
-                            || List.exists module_names ~f:(fun e_module_name ->
-                                   let e_module_name =
-                                     Module.name e_module_name
-                                     |> Module_name.to_string
-                                   in
-                                   let is_melange_wrapper =
-                                     String.equal "Melange_wrapper"
-                                       e_module_name
-                                   in
-                                   is_melange_wrapper
-                                   || flag_open_present e_module_name
-                                   || String.is_prefix ~prefix:ocamldep_out
-                                        e_module_name
-                                   || String.is_prefix ~prefix:e_module_name
-                                        ocamldep_out))
-                      then Some (lib, closure)
-                      else None))
+                              let is_melange_wrapper =
+                                String.equal "Melange_wrapper" e_module_name
+                              in
+                              is_melange_wrapper
+                              || flag_open_present e_module_name
+                              || String.is_prefix ~prefix:ocamldep_out
+                                   e_module_name
+                              || String.is_prefix ~prefix:e_module_name
+                                   ocamldep_out))
+                    then Some (lib, closure)
+                    else None))
       in
       let requires = List.filter_opt requires in
       combine (Resolve.Memo.return requires)
