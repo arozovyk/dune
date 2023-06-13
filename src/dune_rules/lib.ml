@@ -1683,7 +1683,7 @@ let descriptive_closure (l : lib list) ~with_pps : lib list Memo.t =
   (* and then convert it to a list *)
   Set.to_list trans_closure
 
-let unique_sublists lsts =
+let uniq_sublists lsts =
   let rec aux seen = function
     | [] -> []
     | h :: t ->
@@ -1702,7 +1702,7 @@ let uniq_linking_closure l =
       let cl_l = List.split a in
       let closures = snd cl_l in
       let libs = fst cl_l in
-      let r = unique_sublists closures in
+      let r = uniq_sublists closures in
       List.combine libs r)
 
 module Compile = struct

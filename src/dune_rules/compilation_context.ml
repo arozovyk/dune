@@ -7,7 +7,7 @@ module Includes = struct
     let open Resolve.Memo.O in
     let* (module_deps, flags), _ = module_deps in
     let combine lr =
-      let+ requires = Lib.uniq_linking_closure lr in
+      let+ requires = lr in
       List.fold_left requires ~init:Lib.Set.empty ~f:(fun set (lib, closure) ->
           let set = Lib.Set.add set lib in
           let set =
@@ -61,7 +61,6 @@ module Includes = struct
         in
         let implements = Option.is_some (Lib_info.implements (Lib.info lib)) in
         let local = Lib.Local.of_lib lib |> Option.is_none in
-
         let virtual_ = Option.is_some (Lib_info.virtual_ (Lib.info lib)) in
         melange_mode || implements || local || virtual_
       in
@@ -130,7 +129,6 @@ module Includes = struct
   let make ~requires_link ~requires_compile
       ?(entry_names_closure = fun _ -> Memo.return []) () ~project ~opaque ~md
       ~dep_graphs ~flags =
-    ignore entry_names_closure;
     let flags =
       Action_builder.map2
         (Action_builder.map2
@@ -140,7 +138,6 @@ module Includes = struct
         (Ocaml_flags.get flags Lib_mode.Melange)
         ~f:List.append
     in
-
     let open Lib_mode.Cm_kind.Map in
     let open Resolve.Memo.O in
     let iflags libs mode = Lib_flags.L.include_flags ~project libs mode in
