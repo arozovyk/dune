@@ -1164,8 +1164,8 @@ module Library = struct
             let extra_flags =
               if String.starts_with ~prefix:"blake3_" fn
               then (
-                match architecture with
-                | "x86" | "i386" | "i486" | "i586" | "i686" ->
+                match Sys.cygwin, architecture with
+                | _, ("x86" | "i386" | "i486" | "i586" | "i686") | true, _ ->
                   [ "-DBLAKE3_NO_SSE2"
                   ; "-DBLAKE3_NO_SSE41"
                   ; "-DBLAKE3_NO_AVX2"
